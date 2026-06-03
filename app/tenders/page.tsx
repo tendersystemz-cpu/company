@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { displayAmount } from '@/lib/ui';
 
@@ -53,12 +54,14 @@ export default async function TendersPage() {
       ) : (
         <div className="grid">
           {rows.map((row) => (
-            <article className="card" key={row.tender_id}>
-              <div className="eyebrow">{row.tender_category ?? 'No category'}</div>
-              <h2>{row.tender_title}</h2>
-              <p>{row.employer_or_client ?? 'No employer/client recorded'}</p>
-              <div className="metric">{displayAmount(row.contract_amount)}</div>
-            </article>
+            <Link className="card" href={`/tenders/${row.tender_id}`} key={row.tender_id}>
+              <article>
+                <div className="eyebrow">{row.tender_category ?? 'No category'}</div>
+                <h2>{row.tender_title}</h2>
+                <p>{row.employer_or_client ?? 'No employer/client recorded'}</p>
+                <div className="metric">{displayAmount(row.contract_amount)}</div>
+              </article>
+            </Link>
           ))}
         </div>
       )}
