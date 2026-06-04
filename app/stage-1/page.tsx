@@ -15,6 +15,7 @@ type ReportRow = {
   stage_1_result: string | null;
   stage_2_result: string | null;
   final_decision: string | null;
+  recommendation_decision: string | null;
   failed_rule_count: number | null;
   pending_review_rule_count: number | null;
   evidence_attention_count: number | null;
@@ -125,7 +126,7 @@ export default async function Stage1Page() {
                 <strong>Level 1 + Level 2 + Final</strong>
                 <p>Level 1 validates licence / code field. Level 2 validates tender or Pre-Q compliance. Final score supports boss review.</p>
               </div>
-              <div className="sectionCard">
+              <div id="valuation" className="sectionCard">
                 <span>Valuation basis</span>
                 <strong>{displayAmount(contractAmount)}</strong>
                 <p>Compared against bidder tender price, lowest bid and compliance result before recommendation.</p>
