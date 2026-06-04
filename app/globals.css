@@ -81,7 +81,7 @@ nav a:hover {
 }
 
 .main {
-  padding: 32px;
+  padding: 24px 28px;
 }
 
 .pageHeader {
@@ -92,10 +92,28 @@ nav a:hover {
   margin-bottom: 24px;
 }
 
+.compactHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.compactHeader h1 {
+  font-size: 24px;
+  margin: 4px 0 4px;
+}
+
+.compactHeader p {
+  margin: 0;
+  font-size: 13px;
+}
+
 .eyebrow {
   color: var(--accent);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -136,14 +154,44 @@ p {
 
 .label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
-.tableWrap {
+.miniStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.miniCard {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.miniCard span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.miniCard strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+}
+
+.tableWrap,
+.reportTableWrap {
   overflow-x: auto;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 16px;
 }
 
 table {
@@ -152,12 +200,23 @@ table {
   min-width: 900px;
 }
 
+.reportTable {
+  min-width: 1180px;
+}
+
 th,
 td {
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
   text-align: left;
   font-size: 14px;
+  vertical-align: middle;
+}
+
+.reportTable th,
+.reportTable td {
+  padding: 11px 14px;
+  font-size: 13px;
 }
 
 th {
@@ -166,6 +225,11 @@ th {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   background: #fafbff;
+}
+
+.reportTable th {
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 tr:last-child td {
@@ -178,8 +242,8 @@ tr:last-child td {
   gap: 6px;
   padding: 6px 10px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
   background: #eef2ff;
   color: #3730a3;
   white-space: nowrap;
@@ -214,7 +278,7 @@ tr:last-child td {
   background: #eef2f7;
   color: #1f2937;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 @media (max-width: 900px) {
@@ -226,7 +290,8 @@ tr:last-child td {
     position: static;
   }
 
-  .grid.cols3 {
+  .grid.cols3,
+  .miniStats {
     grid-template-columns: 1fr;
   }
 }
