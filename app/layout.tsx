@@ -6,27 +6,39 @@ export const metadata: Metadata = {
   description: 'Company compliance and tender evaluation intelligence web app.'
 };
 
+const navItems = [
+  { href: '/', label: 'Dashboard' },
+  { href: '/tenders', label: 'Tenders' },
+  { href: '/stage-1', label: 'Stage 1 Report' },
+  { href: '/recommendations', label: 'Recommendations' },
+  { href: '/debug', label: 'Debug' }
+];
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <div className="shell">
-          <aside className="sidebar">
-            <div className="brand">
+        <div className="appFrame">
+          <header className="topBar">
+            <a className="topBrand" href="/">
               <span className="brandMark">TS</span>
               <div>
                 <strong>Tender Systemz</strong>
                 <small>Readiness + Evaluation</small>
               </div>
-            </div>
-            <nav>
-              <a href="/">Dashboard</a>
-              <a href="/tenders">Tenders</a>
-              <a href="/stage-1">Stage 1 Board</a>
-              <a href="/recommendations">Recommendations</a>
-            </nav>
-          </aside>
-          <main className="main">{children}</main>
+            </a>
+
+            <details className="mainMenu">
+              <summary>Menu</summary>
+              <div className="mainMenuPanel">
+                {navItems.map((item) => (
+                  <a href={item.href} key={item.href}>{item.label}</a>
+                ))}
+              </div>
+            </details>
+          </header>
+
+          <main className="main fullMain">{children}</main>
         </div>
       </body>
     </html>
