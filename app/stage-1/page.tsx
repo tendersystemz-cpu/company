@@ -110,14 +110,14 @@ export default async function Stage1Page() {
     <div>
       <header className="compactHeader reportHero">
         <div className="reportHeroCopy">
-          <div className="eyebrow">Boss Report</div>
+          <div className="eyebrow">Tender Evaluation Report</div>
           <h1>Tender-specific company eligibility</h1>
           <p>Start with required licence / kod bidang, confirm validity above 90 days from tender closing date, then review Tender / Pre-Q compliance, score, valuation and final recommendation.</p>
         </div>
         <div className="reportHeroPanel">
           <span>Current report mode</span>
           <strong>Eligibility first</strong>
-          <small>Stage board view has been converted into boss decision workspace.</small>
+          <small>Stage board view has been converted into a management decision workspace.</small>
         </div>
       </header>
 
@@ -158,7 +158,7 @@ export default async function Stage1Page() {
           </aside>
 
           <section className="reportContent">
-            <section className="miniStats bossStats">
+            <section className="miniStats executiveStats">
               <div className="miniCard"><span>Companies reviewed</span><strong>{total}</strong></div>
               <div className="miniCard"><span>Level 1 pass</span><strong>{level1Pass}</strong></div>
               <div className="miniCard"><span>Conditional</span><strong>{conditional}</strong></div>
@@ -203,7 +203,7 @@ export default async function Stage1Page() {
               <div className="flowCard">
                 <span>04</span>
                 <strong>Final recommendation</strong>
-                <p>Boss sees score, valuation risk and decision route in one place.</p>
+                <p>Management sees score, valuation risk and decision route in one place.</p>
               </div>
             </section>
 
@@ -211,7 +211,7 @@ export default async function Stage1Page() {
               <div className="sectionCard">
                 <span>Scoring model</span>
                 <strong>Level 1 + Level 2 + Final</strong>
-                <p>Level 1 is licence / kod bidang eligibility. Level 2 is tender or Pre-Q compliance. Final marks support boss approval, panel review or rejection.</p>
+                <p>Level 1 is licence / kod bidang eligibility. Level 2 is tender or Pre-Q compliance. Final marks support management approval, panel review or rejection.</p>
               </div>
               <div id="valuation" className="sectionCard">
                 <span>Valuation basis</span>
@@ -221,7 +221,7 @@ export default async function Stage1Page() {
             </section>
 
             <div className="reportTableWrap">
-              <table className="reportTable bossTable">
+              <table className="reportTable evaluationTable">
                 <thead>
                   <tr>
                     <th>Company</th>
@@ -231,7 +231,7 @@ export default async function Stage1Page() {
                     <th>Level 2: Tender / Pre-Q</th>
                     <th>Score</th>
                     <th>Valuation</th>
-                    <th>Boss decision</th>
+                    <th>Decision review</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -291,7 +291,7 @@ export default async function Stage1Page() {
               <div>
                 <span>Evidence attention</span>
                 <strong>{evidenceAttention}</strong>
-                <p>Documents that require checking before boss recommendation.</p>
+                <p>Documents that require checking before recommendation review.</p>
               </div>
               <div>
                 <span>Pending reviewer checks</span>
