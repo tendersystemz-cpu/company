@@ -37,10 +37,34 @@ async function getRows() {
 
 function eligibilityLabel(result: string | null) {
   if (result === 'PASS') return 'Eligible';
-  if (result === 'PASS_WITH_CONDITION') return 'Eligible w/ condition';
+  if (result === 'PASS_WITH_CONDITION') return 'Conditional';
   if (result === 'FAIL') return 'Not eligible';
-  if (result === 'PENDING_REVIEW') return 'Review';
+  if (result === 'PENDING_REVIEW') return 'Review required';
   return 'Not assessed';
+}
+
+function complianceLabel(result: string | null) {
+  if (result === 'CAPABLE') return 'Compliant';
+  if (result === 'CAPABLE_WITH_CONDITION') return 'Conditional';
+  if (result === 'NOT_CAPABLE') return 'Not compliant';
+  if (result === 'PENDING_REVIEW') return 'Review required';
+  return result ?? 'Pending';
+}
+
+function decisionLabel(row: ReportRow) {
+  const decision = row.recommendation_decision ?? row.final_decision;
+  if (decision === 'RECOMMENDED') return 'Recommend';
+  if (decision === 'PANEL_REVIEW_REQUIRED') return 'Panel review';
+  if (decision === 'DISQUALIFIED') return 'Disqualify';
+  if (decision === 'REJECTED') return 'Reject';
+  return 'Awaiting decision';
+}
+
+function actionLabel(row: ReportRow) {
+  if (row.stage_1_result === 'FAIL') return 'Block until licence issue is cleared';
+  if (row.pending_review_rule_count || row.evidence_attention_count) return 'Reviewer action required';
+  if (row.stage_1_result === 'PASS' && row.stage_2_result === 'CAPABLE') return 'Ready for final review';
+  return 'Proceed with controlled review';
 }
 
 function scoreForRow(row: ReportRow) {
@@ -54,14 +78,28 @@ function scoreForRow(row: ReportRow) {
   return score;
 }
 
+function valuationLabel(contractAmount: number | null, tenderPrice: number | null) {
+  if (!contractAmount || !tenderPrice) return 'Pending tender price';
+  const variance = contractAmount - tenderPrice;
+  if (variance > 0) return 'Below contract value';
+  if (variance < 0) return 'Above contract value';
+  return 'Matched contract value';
+}
+
 export default async function Stage1Page() {
   const { rows, error, configured } = await getRows();
   const total = rows.length;
+  const level1Pass = rows.filter((row) => row.stage_1_result === 'PASS').length;
   const conditional = rows.filter((row) => row.stage_1_result === 'PASS_WITH_CONDITION').length;
   const failed = rows.filter((row) => row.stage_1_result === 'FAIL').length;
+  const level2Compliant = rows.filter((row) => row.stage_2_result === 'CAPABLE').length;
+  const recommended = rows.filter((row) => row.final_decision === 'RECOMMENDED' || row.recommendation_decision === 'RECOMMENDED').length;
   const pending = rows.reduce((sum, row) => sum + Number(row.pending_review_rule_count ?? 0), 0);
   const evidenceAttention = rows.reduce((sum, row) => sum + Number(row.evidence_attention_count ?? 0), 0);
   const contractAmount = rows[0]?.contract_amount ?? null;
+  const tenderTitle = rows[0]?.tender_title ?? 'Tender report';
+  const tenderClient = rows[0]?.employer_or_client ?? 'Client not set';
+  const tenderCategory = rows[0]?.tender_category ?? 'Tender category not set';
   const lowestBid = rows.reduce<number | null>((lowest, row) => {
     if (row.tender_price === null || row.tender_price === undefined) return lowest;
     if (lowest === null) return row.tender_price;
@@ -70,11 +108,16 @@ export default async function Stage1Page() {
 
   return (
     <div>
-      <header className="compactHeader">
-        <div>
+      <header className="compactHeader reportHero">
+        <div className="reportHeroCopy">
           <div className="eyebrow">Boss Report</div>
-          <h1>Tender eligibility, scoring and valuation</h1>
-          <p>Licence validity first. Tender / Pre-Q compliance second. Score and valuation for decision review.</p>
+          <h1>Tender-specific company eligibility</h1>
+          <p>Start with required licence / kod bidang, confirm validity above 90 days from tender closing date, then review Tender / Pre-Q compliance, score, valuation and final recommendation.</p>
+        </div>
+        <div className="reportHeroPanel">
+          <span>Current report mode</span>
+          <strong>Eligibility first</strong>
+          <small>Stage board view has been converted into boss decision workspace.</small>
         </div>
       </header>
 
@@ -92,15 +135,17 @@ export default async function Stage1Page() {
         <div className="reportWorkspace">
           <aside className="reportDrawer">
             <div className="drawerTitle">Report Menu</div>
-            <a href="#eligibility" className="drawerItem active"><span>01</span> Eligibility</a>
-            <a href="#scoring" className="drawerItem"><span>02</span> Permarkahan</a>
-            <a href="#valuation" className="drawerItem"><span>03</span> Valuation</a>
-            <a href="#evidence" className="drawerItem"><span>04</span> Evidence</a>
-            <a href="#decision" className="drawerItem"><span>05</span> Decision</a>
+            <a href="#requirement" className="drawerItem active"><span>01</span> Requirement</a>
+            <a href="#level1" className="drawerItem"><span>02</span> Level 1</a>
+            <a href="#level2" className="drawerItem"><span>03</span> Level 2</a>
+            <a href="#scoring" className="drawerItem"><span>04</span> Score</a>
+            <a href="#valuation" className="drawerItem"><span>05</span> Valuation</a>
+            <a href="#evidence" className="drawerItem"><span>06</span> Evidence</a>
+            <a href="#decision" className="drawerItem"><span>07</span> Decision</a>
 
-            <div className="drawerBlock">
+            <div className="drawerBlock wide">
               <span>Tender</span>
-              <strong>{rows[0]?.tender_title ?? 'Tender report'}</strong>
+              <strong>{tenderTitle}</strong>
             </div>
             <div className="drawerBlock">
               <span>Contract Value</span>
@@ -113,39 +158,80 @@ export default async function Stage1Page() {
           </aside>
 
           <section className="reportContent">
-            <section className="miniStats">
-              <div className="miniCard"><span>Total companies</span><strong>{total}</strong></div>
-              <div className="miniCard"><span>Eligible w/ condition</span><strong>{conditional}</strong></div>
-              <div className="miniCard"><span>Pending checks</span><strong>{pending}</strong></div>
-              <div className="miniCard"><span>Evidence issues</span><strong>{evidenceAttention}</strong></div>
+            <section className="miniStats bossStats">
+              <div className="miniCard"><span>Companies reviewed</span><strong>{total}</strong></div>
+              <div className="miniCard"><span>Level 1 pass</span><strong>{level1Pass}</strong></div>
+              <div className="miniCard"><span>Conditional</span><strong>{conditional}</strong></div>
+              <div className="miniCard"><span>Failed licence / rules</span><strong>{failed}</strong></div>
+              <div className="miniCard"><span>Evidence / pending</span><strong>{evidenceAttention + pending}</strong></div>
+            </section>
+
+            <section id="requirement" className="tenderSnapshot">
+              <div>
+                <span>Tender</span>
+                <strong>{tenderTitle}</strong>
+                <small>{tenderClient}</small>
+              </div>
+              <div>
+                <span>Category</span>
+                <strong>{tenderCategory}</strong>
+                <small>Requirement mapping will drive licence / kod bidang check.</small>
+              </div>
+              <div>
+                <span>Contract / Works Value</span>
+                <strong>{displayAmount(contractAmount)}</strong>
+                <small>Construction value: {displayAmount(rows[0]?.construction_work_value ?? null)}</small>
+              </div>
+            </section>
+
+            <section className="readinessFlow" aria-label="Tender eligibility review flow">
+              <div className="flowCard active">
+                <span>01</span>
+                <strong>Tender required code</strong>
+                <p>Map CIDB / MOF / kod bidang required by this tender.</p>
+              </div>
+              <div id="level1" className="flowCard">
+                <span>02</span>
+                <strong>Level 1: licence validity</strong>
+                <p>Licence / kod bidang must remain valid more than 90 days from closing date.</p>
+              </div>
+              <div id="level2" className="flowCard">
+                <span>03</span>
+                <strong>Level 2: Tender / Pre-Q</strong>
+                <p>Review compliance rules, evidence and pending reviewer action.</p>
+              </div>
+              <div className="flowCard">
+                <span>04</span>
+                <strong>Final recommendation</strong>
+                <p>Boss sees score, valuation risk and decision route in one place.</p>
+              </div>
             </section>
 
             <section id="scoring" className="reportSectionGrid">
               <div className="sectionCard">
                 <span>Scoring model</span>
                 <strong>Level 1 + Level 2 + Final</strong>
-                <p>Level 1 validates licence / code field. Level 2 validates tender or Pre-Q compliance. Final score supports boss review.</p>
+                <p>Level 1 is licence / kod bidang eligibility. Level 2 is tender or Pre-Q compliance. Final marks support boss approval, panel review or rejection.</p>
               </div>
               <div id="valuation" className="sectionCard">
                 <span>Valuation basis</span>
                 <strong>{displayAmount(contractAmount)}</strong>
-                <p>Compared against bidder tender price, lowest bid and compliance result before recommendation.</p>
+                <p>Each tender price is compared against contract value and the lowest bid before recommendation.</p>
               </div>
             </section>
 
-            <div id="eligibility" className="reportTableWrap">
-              <table className="reportTable">
+            <div className="reportTableWrap">
+              <table className="reportTable bossTable">
                 <thead>
                   <tr>
                     <th>Company</th>
-                    <th>Tender Value</th>
+                    <th>Bid price</th>
                     <th>Required code / licence</th>
-                    <th>Expiry &gt; 90 days</th>
-                    <th>Level 1</th>
-                    <th>Level 2 Tender / Pre-Q</th>
+                    <th>Level 1: &gt;90 days</th>
+                    <th>Level 2: Tender / Pre-Q</th>
                     <th>Score</th>
                     <th>Valuation</th>
-                    <th>Action</th>
+                    <th>Boss decision</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -159,37 +245,40 @@ export default async function Stage1Page() {
                           <br />
                           <span className="label">{row.company_code ?? 'No company code'}</span>
                         </td>
-                        <td>{displayAmount(row.tender_price)}</td>
+                        <td>
+                          <strong>{displayAmount(row.tender_price)}</strong>
+                          <br />
+                          <span className="label">Tender submitted price</span>
+                        </td>
                         <td>
                           <span className="code">To map</span>
                           <br />
                           <span className="label">CIDB / MOF / Kod Bidang</span>
                         </td>
                         <td>
-                          <span className="badge warn">Pending</span>
+                          <span className="badge warn">Pending logic</span>
                           <br />
-                          <span className="label">Expiry vs closing date</span>
+                          <span className="label">Expiry date vs closing date</span>
                         </td>
-                        <td><span className={`badge ${badgeTone(row.stage_1_result)}`}>{eligibilityLabel(row.stage_1_result)}</span></td>
                         <td>
-                          <span className={`badge ${badgeTone(row.stage_2_result)}`}>{row.stage_2_result ?? 'Pending'}</span>
+                          <span className={`badge ${badgeTone(row.stage_2_result)}`}>{complianceLabel(row.stage_2_result)}</span>
                           <br />
-                          <span className="label">Pre-Q / tender compliance</span>
+                          <span className="label">{eligibilityLabel(row.stage_1_result)} at Level 1</span>
                         </td>
                         <td>
                           <strong>{score}/100</strong>
                           <br />
-                          <span className="label">Interim score</span>
+                          <span className="label">Interim readiness</span>
                         </td>
                         <td>
                           <strong>{variance === null ? '-' : displayAmount(variance)}</strong>
                           <br />
-                          <span className="label">Contract vs bid variance</span>
+                          <span className="label">{valuationLabel(contractAmount, row.tender_price)}</span>
                         </td>
                         <td>
-                          <strong>{row.pending_review_rule_count ? 'Reviewer action required' : 'Proceed review'}</strong>
+                          <span className={`badge ${badgeTone(row.recommendation_decision ?? row.final_decision)}`}>{decisionLabel(row)}</span>
                           <br />
-                          <span className="label">{row.recommendation_decision ?? row.final_decision ?? 'Awaiting final decision'}</span>
+                          <span className="label">{actionLabel(row)}</span>
                         </td>
                       </tr>
                     );
@@ -198,9 +287,32 @@ export default async function Stage1Page() {
               </table>
             </div>
 
+            <section id="evidence" className="evidencePanel">
+              <div>
+                <span>Evidence attention</span>
+                <strong>{evidenceAttention}</strong>
+                <p>Documents that require checking before boss recommendation.</p>
+              </div>
+              <div>
+                <span>Pending reviewer checks</span>
+                <strong>{pending}</strong>
+                <p>Rules still waiting for manual Tender / Pre-Q review.</p>
+              </div>
+              <div>
+                <span>Compliant companies</span>
+                <strong>{level2Compliant}</strong>
+                <p>Companies marked capable at Level 2 compliance review.</p>
+              </div>
+              <div>
+                <span>Recommended</span>
+                <strong>{recommended}</strong>
+                <p>Companies already routed as recommended in current summary.</p>
+              </div>
+            </section>
+
             <section id="decision" className="decisionStrip">
-              <div><span>Report Focus</span><strong>Eligibility → Score → Valuation → Recommendation</strong></div>
-              <div><span>Boss Action</span><strong>Verify required code, licence expiry &gt;90 days, and Pre-Q compliance</strong></div>
+              <div><span>Report Focus</span><strong>Tender Requirement → Licence Validity &gt;90 Days → Tender / Pre-Q Compliance → Recommendation</strong></div>
+              <div><span>Next System Logic</span><strong>Connect required kod bidang + company licence expiry date against tender closing date.</strong></div>
             </section>
           </section>
         </div>
