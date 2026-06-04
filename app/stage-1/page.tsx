@@ -29,66 +29,105 @@ async function getRows() {
   return { rows: (data ?? []) as Stage1Row[], error, configured: true };
 }
 
+function eligibilityLabel(result: string | null) {
+  if (result === 'PASS') return 'Eligible';
+  if (result === 'PASS_WITH_CONDITION') return 'Eligible w/ condition';
+  if (result === 'FAIL') return 'Not eligible';
+  if (result === 'PENDING_REVIEW') return 'Review';
+  return 'Not assessed';
+}
+
 export default async function Stage1Page() {
   const { rows, error, configured } = await getRows();
+  const total = rows.length;
+  const conditional = rows.filter((row) => row.stage_1_result === 'PASS_WITH_CONDITION').length;
+  const failed = rows.filter((row) => row.stage_1_result === 'FAIL').length;
+  const pending = rows.reduce((sum, row) => sum + Number(row.pending_review_count ?? 0), 0);
 
   return (
     <div>
-      <header className="pageHeader">
+      <header className="compactHeader">
         <div>
-          <div className="eyebrow">Stage 1</div>
-          <h1>Preliminary tender evaluation board</h1>
-          <p>
-            Formal completeness, document sufficiency, minimum capital, current work performance, and early pass/fail reasoning.
-          </p>
+          <div className="eyebrow">Eligibility Report</div>
+          <h1>Company tender eligibility</h1>
+          <p>Level 1 checks licence / field-code validity. Level 2 checks tender or Pre-Q compliance.</p>
         </div>
       </header>
 
       {!configured || error ? (
         <section className="emptyState">
-          <h2>{!configured ? 'Supabase is not configured' : 'Stage 1 view is not ready'}</h2>
+          <h2>{!configured ? 'Supabase is not configured' : 'Eligibility view is not ready'}</h2>
           <p>{error?.message ?? 'Set Supabase environment variables and apply migrations.'}</p>
         </section>
       ) : rows.length === 0 ? (
         <section className="emptyState">
-          <h2>No Stage 1 data yet</h2>
-          <p>Run the migration smoke test or import a tender workbook.</p>
+          <h2>No eligibility data yet</h2>
+          <p>Import company licence data and tender requirement data.</p>
         </section>
       ) : (
-        <div className="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Bidder</th>
-                <th>Tender Price</th>
-                <th>Result</th>
-                <th>Fatal</th>
-                <th>Pending</th>
-                <th>Conditional</th>
-                <th>Risk</th>
-                <th>Reason / Next Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.bidder_id}>
-                  <td><strong>{row.bidder_name}</strong></td>
-                  <td>{displayAmount(row.tender_price)}</td>
-                  <td><span className={`badge ${badgeTone(row.stage_1_result)}`}>{row.stage_1_result ?? 'Not started'}</span></td>
-                  <td>{row.fatal_failure_count ?? 0}</td>
-                  <td>{row.pending_review_count ?? 0}</td>
-                  <td>{row.conditional_pass_count ?? 0}</td>
-                  <td><span className="badge warn">{row.risk_level ?? 'MEDIUM'}</span></td>
-                  <td>
-                    <strong>{row.summary_reason ?? '-'}</strong>
-                    <br />
-                    <span className="label">{row.next_action ?? '-'}</span>
-                  </td>
+        <>
+          <section className="miniStats">
+            <div className="miniCard"><span>Total companies</span><strong>{total}</strong></div>
+            <div className="miniCard"><span>Eligible w/ condition</span><strong>{conditional}</strong></div>
+            <div className="miniCard"><span>Pending checks</span><strong>{pending}</strong></div>
+            <div className="miniCard"><span>Not eligible</span><strong>{failed}</strong></div>
+          </section>
+
+          <div className="reportTableWrap">
+            <table className="reportTable">
+              <thead>
+                <tr>
+                  <th>Company</th>
+                  <th>Bid / Tender Value</th>
+                  <th>Required code / licence</th>
+                  <th>Expiry &gt; 90 days</th>
+                  <th>Level 1</th>
+                  <th>Level 2 Tender / Pre-Q</th>
+                  <th>Final status</th>
+                  <th>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.bidder_id}>
+                    <td>
+                      <strong>{row.bidder_name}</strong>
+                      <br />
+                      <span className="label">Company / bidder</span>
+                    </td>
+                    <td>{displayAmount(row.tender_price)}</td>
+                    <td>
+                      <span className="code">To map</span>
+                      <br />
+                      <span className="label">CIDB / MOF / Kod Bidang</span>
+                    </td>
+                    <td>
+                      <span className="badge warn">Pending</span>
+                      <br />
+                      <span className="label">Compare expiry vs closing date</span>
+                    </td>
+                    <td>
+                      <span className={`badge ${badgeTone(row.stage_1_result)}`}>{eligibilityLabel(row.stage_1_result)}</span>
+                    </td>
+                    <td>
+                      <span className="badge warn">{row.pending_review_count ? 'Review' : 'Pending'}</span>
+                      <br />
+                      <span className="label">Tender / Pre-Q compliance</span>
+                    </td>
+                    <td>
+                      <span className={`badge ${badgeTone(row.stage_1_result)}`}>{row.stage_1_result ?? 'Not assessed'}</span>
+                    </td>
+                    <td>
+                      <strong>{row.next_action ?? 'Verify required licence, code field and evidence.'}</strong>
+                      <br />
+                      <span className="label">{row.summary_reason ?? 'Awaiting compliance rule mapping.'}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
