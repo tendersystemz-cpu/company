@@ -157,6 +157,81 @@ p {
   font-size: 12px;
 }
 
+.reportWorkspace {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.reportDrawer {
+  position: sticky;
+  top: 18px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.04);
+}
+
+.drawerTitle {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 6px 10px;
+}
+
+.drawerItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 10px;
+  padding: 9px 10px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.drawerItem span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.drawerItem.active,
+.drawerItem:hover {
+  background: #eef2ff;
+  color: #1d4ed8;
+}
+
+.drawerBlock {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding: 12px 6px 2px;
+}
+
+.drawerBlock span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.drawerBlock strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.reportContent {
+  min-width: 0;
+}
+
 .miniStats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -184,6 +259,40 @@ p {
   display: block;
   margin-top: 4px;
   font-size: 22px;
+}
+
+.reportSectionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.sectionCard {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 13px 14px;
+}
+
+.sectionCard span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sectionCard strong {
+  display: block;
+  margin: 5px 0 3px;
+  font-size: 16px;
+}
+
+.sectionCard p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .tableWrap,
@@ -264,6 +373,36 @@ tr:last-child td {
   color: var(--bad);
 }
 
+.decisionStrip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.decisionStrip div {
+  background: #111827;
+  color: #ffffff;
+  border-radius: 14px;
+  padding: 13px 14px;
+}
+
+.decisionStrip span {
+  display: block;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.decisionStrip strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .emptyState {
   border: 1px dashed #cbd5e1;
   border-radius: 18px;
@@ -281,6 +420,16 @@ tr:last-child td {
   font-size: 12px;
 }
 
+@media (max-width: 1100px) {
+  .reportWorkspace {
+    grid-template-columns: 1fr;
+  }
+
+  .reportDrawer {
+    position: static;
+  }
+}
+
 @media (max-width: 900px) {
   .shell {
     grid-template-columns: 1fr;
@@ -291,7 +440,9 @@ tr:last-child td {
   }
 
   .grid.cols3,
-  .miniStats {
+  .miniStats,
+  .reportSectionGrid,
+  .decisionStrip {
     grid-template-columns: 1fr;
   }
 }
