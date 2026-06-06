@@ -154,7 +154,7 @@ export default function CidbScorePage() {
       const json = await response.json();
       if (!response.ok || !json.ok) throw new Error(json.error || "Failed to update CIDB SCORE");
 
-      setMessage(`Saved SCORE for ${json.company_code || selectedCompany.company_code}. Run Sync + Evaluate next.`);
+      setMessage(`Saved SCORE for ${json.company_code || selectedCompany.company_code}. Run Sync + Evaluate + Health next.`);
       await loadData();
     } catch (err: any) {
       setError(err?.message || "Failed to update CIDB SCORE");
@@ -178,10 +178,21 @@ export default function CidbScorePage() {
       const evalJson = await evalResponse.json();
       if (!evalResponse.ok || !evalJson.ok) throw new Error(evalJson.error || "Readiness evaluation failed");
 
-      setMessage(`Done. Ready ${evalJson.summary?.ready ?? 0}, Conditional ${evalJson.summary?.conditional ?? 0}, Not Ready ${evalJson.summary?.notReady ?? 0}.`);
+      setMessage("Running evidence health evaluation v1.2...");
+      const healthResponse = await fetch("/api/evaluate-evidence-health-v1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "WORKS_CORE" }),
+      });
+      const healthJson = await healthResponse.json();
+      if (!healthResponse.ok || !healthJson.ok) throw new Error(healthJson.error || "Evidence health evaluation failed");
+
+      setMessage(
+        `Done. Readiness: Ready ${evalJson.summary?.ready ?? 0}, Conditional ${evalJson.summary?.conditional ?? 0}, Not Ready ${evalJson.summary?.notReady ?? 0}. Evidence Health: Critical ${healthJson.summary?.critical ?? 0}, Weak ${healthJson.summary?.weak ?? 0}, Watchlist ${healthJson.summary?.watchlist ?? 0}, Healthy ${healthJson.summary?.healthy ?? 0}.`
+      );
       await loadData();
     } catch (err: any) {
-      setError(err?.message || "Sync + Evaluate failed");
+      setError(err?.message || "Sync + Evaluate + Health failed");
     } finally {
       setRunning(false);
     }
@@ -204,7 +215,7 @@ export default function CidbScorePage() {
             Refresh
           </button>
           <button onClick={runSyncEvaluate} className="compact-button-dark" disabled={loading || saving || running}>
-            {running ? "Running..." : "Sync + Evaluate"}
+            {running ? "Running..." : "Sync + Evaluate + Health"}
           </button>
         </div>
       </div>
@@ -338,7 +349,7 @@ export default function CidbScorePage() {
                   {saving ? "Saving..." : "Save CIDB SCORE"}
                 </button>
                 <button onClick={runSyncEvaluate} disabled={saving || running} className="compact-button-light">
-                  {running ? "Running..." : "Sync + Evaluate"}
+                  {running ? "Running..." : "Sync + Evaluate + Health"}
                 </button>
               </div>
             </>
