@@ -9,6 +9,29 @@ const supabase = createClient(
 );
 
 const SOURCE_TABLE = "sync:evidence-health-v1";
+const VERSION = "evidence-health-v1.1";
+
+const WORKS_CORE_CODES = new Set([
+  "SSM_INFO",
+  "DIRECTOR_ID",
+  "SHAREHOLDER_ID",
+  "CIDB_PPK",
+  "CIDB_SPKK",
+  "CIDB_SCORE",
+  "CIDB_CCD",
+  "TAX_TCC",
+  "AUDIT_REPORT",
+  "BANK_STATEMENT",
+  "BANK_FACILITY_CA",
+  "KWSP",
+  "SOCSO",
+  "SIP",
+  "ACADEMIC_CERT",
+  "COMPETENCY_CERT",
+  "PROJECT_LA",
+  "PROJECT_CPC",
+  "PROJECT_GA",
+]);
 
 function txt(value: any) {
   return String(value ?? "").trim();
@@ -59,10 +82,8 @@ async function readAllRows(table: string, limit = 50000) {
   const rows: Row[] = [];
 
   while (rows.length < limit) {
-    const to = from + chunkSize - 1;
-    const { data, error } = await supabase.from(table).select("*").range(from, to);
+    const { data, error } = await supabase.from(table).select("*").range(from, from + chunkSize - 1);
     if (error) throw new Error(`${table}: ${error.message}`);
-
     const chunk = data || [];
     rows.push(...chunk);
     if (chunk.length < chunkSize) break;
@@ -76,15 +97,109 @@ function daysToExpiry(value: any) {
   if (!value) return null;
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return null;
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
   return Math.ceil((d.getTime() - today.getTime()) / 86400000);
 }
 
+function isRejected(row: Row) {
+  const status = lower(pick(row, ["status", "lifecycle_status"]));
+  const verification = lower(pick(row, ["verification_status"]));
+  return ["rejected", "superseded", "not_applicable", "mismatch"].includes(status) || ["rejected", "mismatch"].includes(verification);
+}
+
+function isMissing(row: Row | null) {
+  if (!row) return true;
+  const status = lower(pick(row, ["status", "lifecycle_status"]));
+  return status === "missing" || status === "not_found";
+}
+
+function isExpired(row: Row | null) {
+  if (!row) return false;
+  const status = lower(pick(row, ["status", "lifecycle_status"]));
+  if (status === "expired") return true;
+  const days = daysToExpiry(pick(row, ["expiry_date", "valid_until", "tarikh_tamat"]));
+  return days !== null && days < 0;
+}
+
+function isExpiring(row: Row | null) {
+  if (!row) return false;
+  const status = lower(pick(row, ["status", "lifecycle_status"]));
+  if (status === "expiring" || status === "expiring_soon") return true;
+  const days = daysToExpiry(pick(row, ["expiry_date", "valid_until", "tarikh_tamat"]));
+  return days !== null && days >= 0 && days <= 90;
+}
+
+function isVerified(row: Row | null) {
+  if (!row) return false;
+  if (row.inferred_from_company_master) return false;
+  const status = lower(pick(row, ["status", "lifecycle_status"]));
+  const verification = lower(pick(row, ["verification_status"]));
+  return verification === "verified" || status === "verified" || status === "verified_active";
+}
+
+function isAvailable(row: Row | null) {
+  if (!row || isRejected(row) || isMissing(row) || isExpired(row)) return false;
+  const status = lower(pick(row, ["status", "lifecycle_status"]));
+  const verification = lower(pick(row, ["verification_status"]));
+  return ["available", "verified", "verified_active", "pending", "expiring", "active", "inferred", "inferred_pending_review"].includes(status) || verification === "verified";
+}
+
+function bestEvidenceForCategory(categoryCode: string, rows: Row[]) {
+  const matches = rows.filter((row) => txt(row.category_code) === categoryCode);
+  if (!matches.length) return null;
+  const verifiedValid = matches.filter((row) => isVerified(row) && isAvailable(row) && !isExpiring(row));
+  if (verifiedValid.length) return verifiedValid[0];
+  const valid = matches.filter((row) => isAvailable(row) && !isExpiring(row));
+  if (valid.length) return valid[0];
+  const expiring = matches.filter((row) => isAvailable(row) && isExpiring(row));
+  if (expiring.length) return expiring[0];
+  const expired = matches.filter(isExpired);
+  if (expired.length) return expired[0];
+  return matches[0];
+}
+
+function inferredEvidenceForCategory(categoryCode: string, company: Row) {
+  if (categoryCode === "SSM_INFO" && (pick(company, ["ssm_no"]) || companyName(company))) {
+    return {
+      category_code: categoryCode,
+      document_title: "Company master SSM/company identity data",
+      status: "inferred_pending_review",
+      verification_status: "pending_review",
+      inferred_from_company_master: true,
+      remarks: "Inferred from company master; upload/verify SSM document for stronger evidence.",
+    };
+  }
+
+  const expiryMap: Record<string, string[]> = {
+    CIDB_PPK: ["ppk_expiry", "ppk_valid_until"],
+    CIDB_SPKK: ["spkk_expiry", "spkk_valid_until"],
+    CIDB_STB: ["stb_expiry", "stb_valid_until"],
+  };
+
+  if (expiryMap[categoryCode]) {
+    const expiry = pick(company, expiryMap[categoryCode]);
+    const grade = pick(company, ["cidb_grade", "gred", "grade"]);
+    if (expiry || grade) {
+      const expired = expiry && daysToExpiry(expiry) !== null && Number(daysToExpiry(expiry)) < 0;
+      return {
+        category_code: categoryCode,
+        document_title: `${categoryCode} inferred from company master`,
+        status: expired ? "expired" : "inferred_pending_review",
+        verification_status: "pending_review",
+        expiry_date: expiry || null,
+        inferred_from_company_master: true,
+        remarks: "Inferred from company master; upload/verify certificate for source-of-truth evidence.",
+      };
+    }
+  }
+
+  return null;
+}
+
 function itemPayload(category: Row, evidence?: Row | null, reason?: string) {
-  const expiryDate = pick(evidence, ["expiry_date", "expired_at", "valid_until", "tarikh_tamat"], "");
+  const expiryDate = pick(evidence, ["expiry_date", "valid_until", "tarikh_tamat"], "");
   return {
     category_code: txt(category.category_code),
     category_name: txt(category.category_name),
@@ -93,86 +208,22 @@ function itemPayload(category: Row, evidence?: Row | null, reason?: string) {
     score_area: txt(category.score_area),
     scoring_impact: txt(category.scoring_impact),
     default_weight: Number(category.default_weight || 0),
-    evidence_status: evidence ? pick(evidence, ["status", "verification_status"], "linked") : "missing",
+    evidence_status: evidence ? pick(evidence, ["status", "lifecycle_status", "verification_status"], "linked") : "missing",
     evidence_url: evidence ? pick(evidence, ["evidence_url", "file_url", "url", "source_url"]) : "",
     expiry_date: expiryDate || null,
     days_to_expiry: expiryDate ? daysToExpiry(expiryDate) : null,
+    inferred_from_company_master: Boolean(evidence?.inferred_from_company_master),
     reason: reason || "",
   };
 }
 
-function isRejected(row: Row) {
-  const status = lower(pick(row, ["status"]));
-  const verification = lower(pick(row, ["verification_status"]));
-  return ["rejected", "superseded", "not_applicable", "mismatch"].includes(status) || ["rejected", "mismatch"].includes(verification);
-}
-
-function isMissing(row: Row | null) {
-  if (!row) return true;
-  const status = lower(pick(row, ["status"]));
-  return status === "missing" || status === "not_found";
-}
-
-function isExpired(row: Row | null) {
-  if (!row) return false;
-  const status = lower(pick(row, ["status"]));
-  if (status === "expired") return true;
-
-  const days = daysToExpiry(pick(row, ["expiry_date", "expired_at", "valid_until", "tarikh_tamat"]));
-  return days !== null && days < 0;
-}
-
-function isExpiring(row: Row | null) {
-  if (!row) return false;
-  const status = lower(pick(row, ["status"]));
-  if (status === "expiring") return true;
-
-  const days = daysToExpiry(pick(row, ["expiry_date", "expired_at", "valid_until", "tarikh_tamat"]));
-  return days !== null && days >= 0 && days <= 90;
-}
-
-function isVerified(row: Row | null) {
-  if (!row) return false;
-  const status = lower(pick(row, ["status"]));
-  const verification = lower(pick(row, ["verification_status"]));
-  return verification === "verified" || status === "verified";
-}
-
-function isAvailable(row: Row | null) {
-  if (!row || isRejected(row) || isMissing(row) || isExpired(row)) return false;
-  const status = lower(pick(row, ["status"]));
-  const verification = lower(pick(row, ["verification_status"]));
-  return ["available", "verified", "pending", "expiring", "active"].includes(status) || verification === "verified";
-}
-
-function bestEvidenceForCategory(categoryCode: string, rows: Row[]) {
-  const matches = rows.filter((row) => txt(row.category_code) === categoryCode);
-  if (!matches.length) return null;
-
-  const verifiedValid = matches.filter((row) => isVerified(row) && isAvailable(row) && !isExpiring(row));
-  if (verifiedValid.length) return verifiedValid[0];
-
-  const valid = matches.filter((row) => isAvailable(row) && !isExpiring(row));
-  if (valid.length) return valid[0];
-
-  const expiring = matches.filter((row) => isAvailable(row) && isExpiring(row));
-  if (expiring.length) return expiring[0];
-
-  const expired = matches.filter(isExpired);
-  if (expired.length) return expired[0];
-
-  return matches[0];
-}
-
 function needsRequiredFields(category: Row) {
-  const fields = category.extract_required_fields;
-  return Array.isArray(fields) && fields.length > 0;
+  return Array.isArray(category.extract_required_fields) && category.extract_required_fields.length > 0;
 }
 
 function hasRequiredFacts(category: Row, facts: Row[], company: Row) {
   const fields = Array.isArray(category.extract_required_fields) ? category.extract_required_fields : [];
   if (!fields.length) return true;
-
   const coId = txt(companyId(company));
   const coCode = txt(companyCode(company));
   const cat = txt(category.category_code);
@@ -191,7 +242,6 @@ function hasRequiredFacts(category: Row, facts: Row[], company: Row) {
 async function insertChunks(table: string, rows: Row[]) {
   const chunkSize = 500;
   let inserted = 0;
-
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
     if (!chunk.length) continue;
@@ -199,12 +249,12 @@ async function insertChunks(table: string, rows: Row[]) {
     if (error) throw new Error(`Insert ${table} failed: ${error.message}`);
     inserted += chunk.length;
   }
-
   return inserted;
 }
 
 function actionFromItem(item: Row, type: string) {
   const critical = item.gate_impact === "FATAL_GATE" || item.scoring_impact === "CRITICAL";
+  const inferred = item.inferred_from_company_master ? " Data ada di master tetapi bukti belum diverify." : "";
   return {
     priority: critical ? "CRITICAL" : item.scoring_impact === "HIGH" ? "HIGH" : "MEDIUM",
     type,
@@ -217,14 +267,31 @@ function actionFromItem(item: Row, type: string) {
         ? `Gantikan ${item.category_name || item.category_code}; dokumen tamat tempoh.`
         : type === "expiring"
         ? `Renew/semak ${item.category_name || item.category_code}; dokumen hampir tamat tempoh.`
-        : `Semak dan verify ${item.category_name || item.category_code}.`,
+        : `Semak dan verify ${item.category_name || item.category_code}.${inferred}`,
   };
 }
 
-export async function POST() {
+function shouldUseCategory(category: Row, scope: string) {
+  const code = txt(category.category_code);
+  if (scope === "FULL") return true;
+  if (scope === "WORKS_CORE") return WORKS_CORE_CODES.has(code);
+  return true;
+}
+
+export async function POST(request: Request) {
   try {
+    let body: Row = {};
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
+
+    const scope = txt(body.scope || "WORKS_CORE").toUpperCase();
     const companies = await readAllRows("companies", 50000);
-    const categories = (await readAllRows("evidence_category_master", 5000)).filter((cat) => cat.is_active !== false);
+    const categories = (await readAllRows("evidence_category_master", 5000))
+      .filter((cat) => cat.is_active !== false)
+      .filter((cat) => shouldUseCategory(cat, scope));
     const evidenceRows = await readAllRows("company_evidence_index", 50000);
     const facts = await readAllRows("evidence_extracted_facts", 50000);
 
@@ -233,7 +300,6 @@ export async function POST() {
 
     for (const company of companies) {
       const coEvidence = evidenceRows.filter((row) => sameCompany(row, company));
-
       const missingItems: Row[] = [];
       const expiredItems: Row[] = [];
       const expiringItems: Row[] = [];
@@ -254,7 +320,10 @@ export async function POST() {
         const riskWeight = Number(category.risk_weight || 0);
         totalWeight += weight;
 
-        const evidence = bestEvidenceForCategory(categoryCode, coEvidence);
+        let evidence = bestEvidenceForCategory(categoryCode, coEvidence);
+        const inferred = inferredEvidenceForCategory(categoryCode, company);
+        if ((!evidence || isMissing(evidence)) && inferred) evidence = inferred;
+
         const missing = isMissing(evidence);
         const expired = isExpired(evidence);
         const expiring = isExpiring(evidence);
@@ -307,8 +376,7 @@ export async function POST() {
         }
 
         if (available && !expired) {
-          if (verified) earnedWeight += weight;
-          else earnedWeight += weight * 0.6;
+          earnedWeight += verified ? weight : weight * 0.55;
           if (expiring) earnedWeight -= Math.max(1, riskWeight);
         }
       }
@@ -318,10 +386,11 @@ export async function POST() {
       const expiredCount = expiredItems.length;
       const expiringCount = expiringItems.length;
       const pendingReviewCount = pendingItems.length;
-
-      const evidenceHealthScore = totalWeight
-        ? Math.max(0, Math.min(100, Math.round(((earnedWeight / totalWeight) * 100 - fatalGateRiskCount * 8 - incompleteFieldsCount * 1.5) * 100) / 100))
-        : 0;
+      const baseScore = totalWeight ? (earnedWeight / totalWeight) * 100 : 0;
+      const evidenceHealthScore = Math.max(
+        0,
+        Math.min(100, Math.round((baseScore - expiredCount * 1.5 - expiringCount * 0.5 - incompleteFieldsCount * 0.75) * 100) / 100)
+      );
 
       const healthStatus = fatalGateRiskCount
         ? "CRITICAL"
@@ -390,16 +459,6 @@ export async function POST() {
     const insertedSnapshots = await insertChunks("company_evidence_health_snapshots", snapshots);
     const insertedTasks = await insertChunks("evidence_update_tasks", tasks);
 
-    await supabase.from("sync_run_logs").insert({
-      sync_name: "evidence-health-evaluation-v1",
-      status: "success",
-      total_companies: companies.length,
-      total_source_evidence: evidenceRows.length,
-      total_generated_index: insertedSnapshots,
-      total_missing_mandatory: snapshots.reduce((sum, row) => sum + Number(row.fatal_gate_risk_count || 0), 0),
-      message: `Evidence health snapshots: ${insertedSnapshots}. Renewal/update tasks: ${insertedTasks}.`,
-    });
-
     const summary = {
       healthy: snapshots.filter((row) => row.health_status === "HEALTHY").length,
       watchlist: snapshots.filter((row) => row.health_status === "WATCHLIST").length,
@@ -407,15 +466,31 @@ export async function POST() {
       critical: snapshots.filter((row) => row.health_status === "CRITICAL").length,
     };
 
+    await supabase.from("sync_run_logs").insert({
+      sync_name: "evidence-health-evaluation-v1",
+      status: "success",
+      total_companies: companies.length,
+      total_source_evidence: evidenceRows.length,
+      total_generated_index: insertedSnapshots,
+      total_missing_mandatory: snapshots.reduce((sum, row) => sum + Number(row.fatal_gate_risk_count || 0), 0),
+      message: `${VERSION}; scope ${scope}; snapshots ${insertedSnapshots}; tasks ${insertedTasks}.`,
+    });
+
     return NextResponse.json({
       ok: true,
-      version: "evidence-health-v1",
+      version: VERSION,
+      scope,
       totalCompanies: companies.length,
       totalCategories: categories.length,
       totalEvidenceRows: evidenceRows.length,
       totalSnapshots: insertedSnapshots,
       totalTasks: insertedTasks,
       summary,
+      policy: {
+        defaultScope: "WORKS_CORE",
+        tenderSpecificEvidence: "tracked later by tender-specific requirement, not counted as generic core gap",
+        inferredCompanyMaster: "partial credit only, still requires verified evidence for source-of-truth",
+      },
     });
   } catch (error: any) {
     await supabase.from("sync_run_logs").insert({
@@ -425,7 +500,7 @@ export async function POST() {
     });
 
     return NextResponse.json(
-      { ok: false, version: "evidence-health-v1", error: error?.message || "Unknown evidence health evaluation error" },
+      { ok: false, version: VERSION, error: error?.message || "Unknown evidence health evaluation error" },
       { status: 500 }
     );
   }
@@ -436,6 +511,7 @@ export async function GET() {
     ok: true,
     endpoint: "/api/evaluate-evidence-health-v1",
     method: "POST",
-    version: "evidence-health-v1",
+    version: VERSION,
+    defaultScope: "WORKS_CORE",
   });
 }
