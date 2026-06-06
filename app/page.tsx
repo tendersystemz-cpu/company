@@ -1,65 +1,130 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+
+export default function HomePage() {
+  const [totalCompanies, setTotalCompanies] = useState<number | null>(null);
+  const [totalEvidence, setTotalEvidence] = useState<number | null>(null);
+  const [totalPreq, setTotalPreq] = useState<number | null>(null);
+  const [pendingReview, setPendingReview] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    async function loadDashboardCounts() {
+      const companies = await supabase
+        .from("companies")
+        .select("*", { count: "exact", head: true });
+
+      const evidence = await supabase
+        .from("evidence_documents")
+        .select("*", { count: "exact", head: true });
+
+      const preq = await supabase
+        .from("preq_reviews")
+        .select("*", { count: "exact", head: true });
+
+      const pending = await supabase
+        .from("preq_reviews")
+        .select("*", { count: "exact", head: true })
+        .eq("review_status", "pending_review");
+
+      if (companies.error || evidence.error || preq.error || pending.error) {
+        setErrorMessage(
+          companies.error?.message ||
+          evidence.error?.message ||
+          preq.error?.message ||
+          pending.error?.message ||
+          "Failed to load dashboard counts"
+        );
+        return;
+      }
+
+      setTotalCompanies(companies.count || 0);
+      setTotalEvidence(evidence.count || 0);
+      setTotalPreq(preq.count || 0);
+      setPendingReview(pending.count || 0);
+    }
+
+    loadDashboardCounts();
+  }, []);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main style={{ padding: "40px", fontFamily: "Arial, sans-serif" }}>
+      <h1>Tender Readiness System</h1>
+      <p>Dashboard utama untuk akses modul awal sistem.</p>
+
+      {errorMessage && (
+        <div style={{ background: "#fee2e2", color: "#991b1b", padding: "16px", borderRadius: "8px", marginTop: "20px" }}>
+          <strong>Error:</strong> {errorMessage}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "16px", marginTop: "30px" }}>
+        <div style={kpiCard}>
+          <span>Total Companies</span>
+          <strong>{totalCompanies ?? "..."}</strong>
         </div>
-      </main>
-    </div>
+
+        <div style={kpiCard}>
+          <span>Total Evidence</span>
+          <strong>{totalEvidence ?? "..."}</strong>
+        </div>
+
+        <div style={kpiCard}>
+          <span>Pre-Q Reviews</span>
+          <strong>{totalPreq ?? "..."}</strong>
+        </div>
+
+        <div style={kpiCard}>
+          <span>Pending Review</span>
+          <strong>{pendingReview ?? "..."}</strong>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: "16px", maxWidth: "800px", marginTop: "30px" }}>
+        <Link href="/companies" style={card}>
+          <strong>Company Register</strong>
+          <span>Senarai syarikat dari Supabase.</span>
+        </Link>
+
+        <Link href="/evidence" style={card}>
+          <strong>Evidence Register</strong>
+          <span>Dokumen bukti seperti PPK, SPKK, SSM, MOF dan link Google Drive.</span>
+        </Link>
+
+        <Link href="/preq" style={card}>
+          <strong>Pre-Q Review Queue</strong>
+          <span>Semakan Pre-Q, status review, eligibility dan remarks.</span>
+        </Link>
+
+        <Link href="/api-test" style={card}>
+          <strong>API Test</strong>
+          <span>Test connection Supabase.</span>
+        </Link>
+      </div>
+    </main>
   );
 }
+
+const kpiCard = {
+  display: "grid",
+  gap: "8px",
+  padding: "20px",
+  border: "1px solid #d1d5db",
+  borderRadius: "12px",
+  background: "#111827",
+  color: "white",
+};
+
+const card = {
+  display: "grid",
+  gap: "6px",
+  padding: "20px",
+  border: "1px solid #d1d5db",
+  borderRadius: "12px",
+  textDecoration: "none",
+  color: "#111827",
+  background: "#f9fafb",
+};

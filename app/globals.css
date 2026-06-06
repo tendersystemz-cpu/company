@@ -1,26 +1,226 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+* {
+  box-sizing: border-box;
+  font-size: 10px !important;
+  font-family: Arial, sans-serif !important;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #f3f4f6;
+  color: #111827;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  min-height: 100vh;
+  background: #f3f4f6;
+}
+
+.app-sidebar {
+  background: #020617;
+  color: #ffffff;
+  padding: 8px 6px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.app-logo {
+  height: 34px;
+  border-radius: 8px;
+  background: #facc15;
+  color: #111827;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+.app-nav-icon {
+  height: 34px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #cbd5e1;
+  text-decoration: none;
+  background: #0f172a;
+  font-weight: 800;
+}
+
+.app-nav-icon:hover {
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.app-nav-text {
+  letter-spacing: -0.03em;
+}
+
+.app-content {
+  padding: 10px;
+  overflow-x: auto;
+}
+
+.app-topbar {
+  height: 44px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+}
+
+.app-title {
+  font-weight: 800;
+}
+
+.app-subtitle {
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.app-page {
+  margin-top: 8px;
+}
+
+main {
+  padding: 10px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  min-height: auto !important;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 6px 0 !important;
+  font-weight: 800 !important;
+}
+
+p {
+  margin: 0 0 6px 0 !important;
+  color: #4b5563;
+}
+
+a {
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  color: #111827;
+}
+
+th {
+  background: #111827 !important;
+  color: #ffffff !important;
+  padding: 6px !important;
+  border: 1px solid #d1d5db !important;
+  text-align: left !important;
+  font-weight: 800 !important;
+  white-space: nowrap;
+}
+
+td {
+  padding: 6px !important;
+  border: 1px solid #e5e7eb !important;
+  color: #111827 !important;
+  background: #ffffff !important;
+  vertical-align: top !important;
+  line-height: 1.35;
+}
+
+button {
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+textarea,
+input,
+select {
+  color: #111827 !important;
+  background: #ffffff !important;
+  border: 1px solid #9ca3af !important;
+  border-radius: 6px;
+  padding: 5px;
+}
+
+.module-header {
+  height: 42px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.module-title {
+  font-weight: 800;
+}
+
+.module-subtitle {
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.compact-card {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  padding: 7px 9px;
+}
+
+.compact-dark-card {
+  background: #111827;
+  color: #ffffff;
+  border: 1px solid #111827;
+  border-radius: 9px;
+  padding: 7px 9px;
+}
+
+.compact-button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #9ca3af;
+  background: #ffffff;
+  color: #111827;
+}
+
+.compact-button-dark {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  background: #111827;
+  color: #ffffff;
+}
+
+.compact-table-wrap {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.muted {
+  color: #6b7280;
 }
