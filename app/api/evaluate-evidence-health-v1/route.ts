@@ -8,10 +8,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-const SOURCE_TABLE = "sync:evidence-health-v1";
 const VERSION = "evidence-health-v1.2";
-
-const WORKS_CORE_CODES = new Set([
+const SOURCE_TABLE = "sync:evidence-health-v1";
+const WORKS_CORE = new Set([
   "SSM_INFO",
   "DIRECTOR_ID",
   "SHAREHOLDER_ID",
@@ -33,19 +32,14 @@ const WORKS_CORE_CODES = new Set([
   "PROJECT_GA",
 ]);
 
-function txt(value: any) {
-  return String(value ?? "").trim();
-}
-
-function lower(value: any) {
-  return txt(value).toLowerCase();
-}
+const t = (v: any) => String(v ?? "").trim();
+const l = (v: any) => t(v).toLowerCase();
 
 function pick(row: Row | null | undefined, keys: string[], fallback = "") {
   if (!row) return fallback;
   for (const key of keys) {
     const value = row[key];
-    if (value !== undefined && value !== null && txt(value) !== "") return txt(value);
+    if (value !== undefined && value !== null && t(value) !== "") return t(value);
   }
   return fallback;
 }
@@ -63,33 +57,28 @@ function companyId(row: Row) {
 }
 
 function sameCompany(row: Row, company: Row) {
-  const rowCompanyId = pick(row, ["company_id"]);
+  const rowId = pick(row, ["company_id"]);
   const coId = companyId(company);
-  if (rowCompanyId && coId && lower(rowCompanyId) === lower(coId)) return true;
+  if (rowId && coId && l(rowId) === l(coId)) return true;
 
   const rowCode = companyCode(row);
   const coCode = companyCode(company);
-  if (rowCode && coCode && lower(rowCode) === lower(coCode)) return true;
+  if (rowCode && coCode && l(rowCode) === l(coCode)) return true;
 
   const rowName = companyName(row);
   const coName = companyName(company);
-  return Boolean(rowName && coName && lower(rowName) === lower(coName));
+  return Boolean(rowName && coName && l(rowName) === l(coName));
 }
 
-async function readAllRows(table: string, limit = 50000) {
-  const chunkSize = 1000;
-  let from = 0;
+async function allRows(table: string, limit = 50000) {
   const rows: Row[] = [];
-
-  while (rows.length < limit) {
-    const { data, error } = await supabase.from(table).select("*").range(from, from + chunkSize - 1);
+  for (let from = 0; rows.length < limit; from += 1000) {
+    const { data, error } = await supabase.from(table).select("*").range(from, from + 999);
     if (error) throw new Error(`${table}: ${error.message}`);
     const chunk = data || [];
     rows.push(...chunk);
-    if (chunk.length < chunkSize) break;
-    from += chunkSize;
+    if (chunk.length < 1000) break;
   }
-
   return rows.slice(0, limit);
 }
 
@@ -103,166 +92,148 @@ function daysToExpiry(value: any) {
   return Math.ceil((d.getTime() - today.getTime()) / 86400000);
 }
 
-function isRejected(row: Row) {
-  const status = lower(pick(row, ["status", "lifecycle_status"]));
-  const verification = lower(pick(row, ["verification_status"]));
+function rejected(row: Row | null) {
+  if (!row) return false;
+  const status = l(pick(row, ["status", "lifecycle_status"]));
+  const verification = l(pick(row, ["verification_status"]));
   return ["rejected", "superseded", "not_applicable", "mismatch"].includes(status) || ["rejected", "mismatch"].includes(verification);
 }
 
-function isMissing(row: Row | null) {
+function missing(row: Row | null) {
   if (!row) return true;
-  const status = lower(pick(row, ["status", "lifecycle_status"]));
+  const status = l(pick(row, ["status", "lifecycle_status"]));
   return status === "missing" || status === "not_found";
 }
 
-function isExpired(row: Row | null) {
+function expired(row: Row | null) {
   if (!row) return false;
-  const status = lower(pick(row, ["status", "lifecycle_status"]));
+  const status = l(pick(row, ["status", "lifecycle_status"]));
   if (status === "expired") return true;
   const days = daysToExpiry(pick(row, ["expiry_date", "valid_until", "tarikh_tamat"]));
   return days !== null && days < 0;
 }
 
-function isExpiring(row: Row | null) {
+function expiring(row: Row | null) {
   if (!row) return false;
-  const status = lower(pick(row, ["status", "lifecycle_status"]));
+  const status = l(pick(row, ["status", "lifecycle_status"]));
   if (status === "expiring" || status === "expiring_soon") return true;
   const days = daysToExpiry(pick(row, ["expiry_date", "valid_until", "tarikh_tamat"]));
   return days !== null && days >= 0 && days <= 90;
 }
 
-function isVerified(row: Row | null) {
-  if (!row) return false;
-  if (row.inferred_from_company_master) return false;
-  const status = lower(pick(row, ["status", "lifecycle_status"]));
-  const verification = lower(pick(row, ["verification_status"]));
+function verified(row: Row | null) {
+  if (!row || row.inferred_from_company_master) return false;
+  const status = l(pick(row, ["status", "lifecycle_status"]));
+  const verification = l(pick(row, ["verification_status"]));
   return verification === "verified" || status === "verified" || status === "verified_active";
 }
 
-function isAvailable(row: Row | null) {
-  if (!row || isRejected(row) || isMissing(row) || isExpired(row)) return false;
-  const status = lower(pick(row, ["status", "lifecycle_status"]));
-  const verification = lower(pick(row, ["verification_status"]));
+function available(row: Row | null) {
+  if (!row || rejected(row) || missing(row) || expired(row)) return false;
+  const status = l(pick(row, ["status", "lifecycle_status"]));
+  const verification = l(pick(row, ["verification_status"]));
   return ["available", "verified", "verified_active", "pending", "expiring", "active", "inferred", "inferred_pending_review"].includes(status) || verification === "verified";
 }
 
-function bestEvidenceForCategory(categoryCode: string, rows: Row[]) {
-  const matches = rows.filter((row) => txt(row.category_code) === categoryCode);
+function bestEvidence(categoryCode: string, rows: Row[]) {
+  const matches = rows.filter((row) => t(row.category_code) === categoryCode);
   if (!matches.length) return null;
-  const verifiedValid = matches.filter((row) => isVerified(row) && isAvailable(row) && !isExpiring(row));
-  if (verifiedValid.length) return verifiedValid[0];
-  const valid = matches.filter((row) => isAvailable(row) && !isExpiring(row));
-  if (valid.length) return valid[0];
-  const expiring = matches.filter((row) => isAvailable(row) && isExpiring(row));
-  if (expiring.length) return expiring[0];
-  const expired = matches.filter(isExpired);
-  if (expired.length) return expired[0];
-  return matches[0];
+  return (
+    matches.find((row) => verified(row) && available(row) && !expiring(row)) ||
+    matches.find((row) => available(row) && !expiring(row)) ||
+    matches.find((row) => available(row) && expiring(row)) ||
+    matches.find((row) => expired(row)) ||
+    matches[0]
+  );
 }
 
-function inferredEvidenceForCategory(categoryCode: string, company: Row) {
+function inferred(categoryCode: string, company: Row) {
   if (categoryCode === "SSM_INFO" && (pick(company, ["ssm_no"]) || companyName(company))) {
     return {
       category_code: categoryCode,
-      document_title: "Company master SSM/company identity data",
       status: "inferred_pending_review",
       verification_status: "pending_review",
       inferred_from_company_master: true,
-      remarks: "Inferred from company master; upload/verify SSM document for stronger evidence.",
     };
   }
 
-  const expiryMap: Record<string, string[]> = {
+  const map: Record<string, string[]> = {
     CIDB_PPK: ["ppk_expiry", "ppk_valid_until"],
     CIDB_SPKK: ["spkk_expiry", "spkk_valid_until"],
     CIDB_STB: ["stb_expiry", "stb_valid_until"],
   };
 
-  if (expiryMap[categoryCode]) {
-    const expiry = pick(company, expiryMap[categoryCode]);
-    const grade = pick(company, ["cidb_grade", "gred", "grade"]);
-    if (expiry || grade) {
-      const expired = expiry && daysToExpiry(expiry) !== null && Number(daysToExpiry(expiry)) < 0;
-      return {
-        category_code: categoryCode,
-        document_title: `${categoryCode} inferred from company master`,
-        status: expired ? "expired" : "inferred_pending_review",
-        verification_status: "pending_review",
-        expiry_date: expiry || null,
-        inferred_from_company_master: true,
-        remarks: "Inferred from company master; upload/verify certificate for source-of-truth evidence.",
-      };
-    }
-  }
+  if (!map[categoryCode]) return null;
+  const expiry = pick(company, map[categoryCode]);
+  const grade = pick(company, ["cidb_grade", "gred", "grade"]);
+  if (!expiry && !grade) return null;
 
-  return null;
-}
-
-function itemPayload(category: Row, evidence?: Row | null, reason?: string) {
-  const expiryDate = pick(evidence, ["expiry_date", "valid_until", "tarikh_tamat"], "");
+  const isExpired = expiry && daysToExpiry(expiry) !== null && Number(daysToExpiry(expiry)) < 0;
   return {
-    category_code: txt(category.category_code),
-    category_name: txt(category.category_name),
-    evidence_role: txt(category.evidence_role),
-    gate_impact: txt(category.gate_impact),
-    score_area: txt(category.score_area),
-    scoring_impact: txt(category.scoring_impact),
-    default_weight: Number(category.default_weight || 0),
-    evidence_status: evidence ? pick(evidence, ["status", "lifecycle_status", "verification_status"], "linked") : "missing",
-    evidence_url: evidence ? pick(evidence, ["evidence_url", "file_url", "url", "source_url"]),
-    expiry_date: expiryDate || null,
-    days_to_expiry: expiryDate ? daysToExpiry(expiryDate) : null,
-    inferred_from_company_master: Boolean(evidence?.inferred_from_company_master),
-    source_table: txt(evidence?.source_table || evidence?.source_type || evidence?.source_system || ""),
-    reason: reason || "",
+    category_code: categoryCode,
+    status: isExpired ? "expired" : "inferred_pending_review",
+    verification_status: "pending_review",
+    expiry_date: expiry || null,
+    inferred_from_company_master: true,
   };
 }
 
-function needsRequiredFields(category: Row) {
-  return Array.isArray(category.extract_required_fields) && category.extract_required_fields.length > 0;
+function item(category: Row, evidence: Row | null, reason: string) {
+  const expiryDate = pick(evidence, ["expiry_date", "valid_until", "tarikh_tamat"], "");
+  return {
+    category_code: t(category.category_code),
+    category_name: t(category.category_name),
+    evidence_role: t(category.evidence_role),
+    gate_impact: t(category.gate_impact),
+    score_area: t(category.score_area),
+    scoring_impact: t(category.scoring_impact),
+    default_weight: Number(category.default_weight || 0),
+    evidence_status: evidence ? pick(evidence, ["status", "lifecycle_status", "verification_status"], "linked") : "missing",
+    evidence_url: evidence ? pick(evidence, ["evidence_url", "file_url", "url", "source_url"], "") : "",
+    expiry_date: expiryDate || null,
+    days_to_expiry: expiryDate ? daysToExpiry(expiryDate) : null,
+    inferred_from_company_master: Boolean(evidence?.inferred_from_company_master),
+    source_table: t(evidence?.source_table || evidence?.source_type || evidence?.source_system || ""),
+    reason,
+  };
 }
 
-function hasRequiredFacts(category: Row, facts: Row[], company: Row, evidence?: Row | null) {
+function hasRequiredFacts(category: Row, facts: Row[], company: Row, evidence: Row | null) {
   const fields = Array.isArray(category.extract_required_fields) ? category.extract_required_fields : [];
   if (!fields.length) return true;
+  if (evidence && t(evidence.extracted_fields_status).toUpperCase() === "COMPLETE") return true;
 
-  if (evidence && txt(evidence.extracted_fields_status).toUpperCase() === "COMPLETE") return true;
-
-  const coId = txt(companyId(company));
-  const coCode = txt(companyCode(company));
-  const cat = txt(category.category_code);
-  const evidenceId = txt(evidence?.id);
+  const coId = t(companyId(company));
+  const coCode = companyCode(company);
+  const cat = t(category.category_code);
+  const evidenceId = t(evidence?.id);
 
   return fields.every((field: string) =>
     facts.some((fact) => {
-      const sameEvidence = evidenceId && txt(fact.evidence_id) === evidenceId;
-      const sameCat = txt(fact.category_code) === cat;
-      const sameCo = (coId && txt(fact.company_id) === coId) || (coCode && txt(fact.company_code) === coCode);
-      const sameKey = txt(fact.fact_key) === txt(field);
-      const hasValue = txt(fact.fact_value_text) || fact.fact_value_number !== null || fact.fact_value_date !== null;
-      return sameKey && hasValue && (sameEvidence || (sameCat && sameCo));
+      const sameEvidence = evidenceId && t(fact.evidence_id) === evidenceId;
+      const sameCatCompany = t(fact.category_code) === cat && ((coId && t(fact.company_id) === coId) || (coCode && t(fact.company_code) === coCode));
+      const hasValue = t(fact.fact_value_text) || fact.fact_value_number !== null || fact.fact_value_date !== null;
+      return t(fact.fact_key) === t(field) && hasValue && (sameEvidence || sameCatCompany);
     })
   );
 }
 
 async function insertChunks(table: string, rows: Row[]) {
-  const chunkSize = 500;
   let inserted = 0;
-  for (let i = 0; i < rows.length; i += chunkSize) {
-    const chunk = rows.slice(i, i + chunkSize);
+  for (let i = 0; i < rows.length; i += 500) {
+    const chunk = rows.slice(i, i + 500);
     if (!chunk.length) continue;
     const { error } = await supabase.from(table).insert(chunk);
-    if (error) throw new Error(`Insert ${table} failed: ${error.message}`);
+    if (error) throw new Error(`Insert ${table}: ${error.message}`);
     inserted += chunk.length;
   }
   return inserted;
 }
 
-function actionFromItem(item: Row, type: string) {
-  const critical = item.gate_impact === "FATAL_GATE" || item.scoring_impact === "CRITICAL";
-  const inferred = item.inferred_from_company_master ? " Data ada di master tetapi bukti belum diverify." : "";
+function actionFrom(item: Row, type: string) {
+  const high = item.gate_impact === "FATAL_GATE" || item.scoring_impact === "CRITICAL";
   return {
-    priority: critical ? "CRITICAL" : item.scoring_impact === "HIGH" ? "HIGH" : "MEDIUM",
+    priority: high ? "CRITICAL" : item.scoring_impact === "HIGH" ? "HIGH" : "MEDIUM",
     type,
     category_code: item.category_code,
     score_area: item.score_area,
@@ -273,15 +244,8 @@ function actionFromItem(item: Row, type: string) {
         ? `Gantikan ${item.category_name || item.category_code}; dokumen tamat tempoh.`
         : type === "expiring"
         ? `Renew/semak ${item.category_name || item.category_code}; dokumen hampir tamat tempoh.`
-        : `Semak dan verify ${item.category_name || item.category_code}.${inferred}`,
+        : `Semak dan verify ${item.category_name || item.category_code}.`,
   };
-}
-
-function shouldUseCategory(category: Row, scope: string) {
-  const code = txt(category.category_code);
-  if (scope === "FULL") return true;
-  if (scope === "WORKS_CORE") return WORKS_CORE_CODES.has(code);
-  return true;
 }
 
 export async function POST(request: Request) {
@@ -293,16 +257,15 @@ export async function POST(request: Request) {
       body = {};
     }
 
-    const scope = txt(body.scope || "WORKS_CORE").toUpperCase();
-    const companies = await readAllRows("companies", 50000);
-    const categories = (await readAllRows("evidence_category_master", 5000))
+    const scope = t(body.scope || "WORKS_CORE").toUpperCase();
+    const companies = await allRows("companies");
+    const categories = (await allRows("evidence_category_master", 5000))
       .filter((cat) => cat.is_active !== false)
-      .filter((cat) => shouldUseCategory(cat, scope));
-
-    const evidenceRegisterRows = await readAllRows("evidence_register", 50000);
-    const evidenceIndexRows = await readAllRows("company_evidence_index", 50000);
+      .filter((cat) => scope === "FULL" || WORKS_CORE.has(t(cat.category_code)));
+    const evidenceRegisterRows = await allRows("evidence_register");
+    const evidenceIndexRows = await allRows("company_evidence_index");
     const evidenceRows = [...evidenceRegisterRows, ...evidenceIndexRows];
-    const facts = await readAllRows("evidence_extracted_facts", 50000);
+    const facts = await allRows("evidence_extracted_facts");
 
     const snapshots: Row[] = [];
     const tasks: Row[] = [];
@@ -324,69 +287,68 @@ export async function POST(request: Request) {
       let tenderSpecificGapCount = 0;
 
       for (const category of categories) {
-        const categoryCode = txt(category.category_code);
+        const code = t(category.category_code);
         const weight = Number(category.default_weight || 0);
         const riskWeight = Number(category.risk_weight || 0);
         totalWeight += weight;
 
-        let evidence = bestEvidenceForCategory(categoryCode, coEvidence);
-        const inferred = inferredEvidenceForCategory(categoryCode, company);
-        if ((!evidence || isMissing(evidence)) && inferred) evidence = inferred;
+        let evidence = bestEvidence(code, coEvidence);
+        if ((!evidence || missing(evidence)) && inferred(code, company)) evidence = inferred(code, company);
 
-        const missing = isMissing(evidence);
-        const expired = isExpired(evidence);
-        const expiring = isExpiring(evidence);
-        const available = isAvailable(evidence);
-        const verified = isVerified(evidence);
-        const fatal = txt(category.gate_impact) === "FATAL_GATE";
-        const tenderSpecific = Boolean(category.tender_specific_flag);
+        const isMissing = missing(evidence);
+        const isExpired = expired(evidence);
+        const isExpiring = expiring(evidence);
+        const isVerified = verified(evidence);
+        const isAvailable = available(evidence);
+        const isFatal = t(category.gate_impact) === "FATAL_GATE";
+        const isTenderSpecific = Boolean(category.tender_specific_flag);
 
-        if (verified && available && !expiring) verifiedCount++;
+        if (isVerified && isAvailable && !isExpiring) verifiedCount++;
 
-        if (missing) {
-          const item = itemPayload(category, evidence, "missing");
-          missingItems.push(item);
-          scoreLossDrivers.push(item);
+        if (isMissing) {
+          const x = item(category, evidence, "missing");
+          missingItems.push(x);
+          scoreLossDrivers.push(x);
           scoreLossEstimate += weight + riskWeight;
-          if (fatal) blockerItems.push(item);
-          if (tenderSpecific) tenderSpecificGapCount++;
+          if (isFatal) blockerItems.push(x);
+          if (isTenderSpecific) tenderSpecificGapCount++;
           continue;
         }
 
-        if (expired) {
-          const item = itemPayload(category, evidence, "expired");
-          expiredItems.push(item);
-          scoreLossDrivers.push(item);
+        if (isExpired) {
+          const x = item(category, evidence, "expired");
+          expiredItems.push(x);
+          scoreLossDrivers.push(x);
           scoreLossEstimate += weight + riskWeight;
-          if (fatal) blockerItems.push(item);
-          if (tenderSpecific) tenderSpecificGapCount++;
+          if (isFatal) blockerItems.push(x);
+          if (isTenderSpecific) tenderSpecificGapCount++;
           continue;
         }
 
-        if (expiring) {
-          const item = itemPayload(category, evidence, "expiring_soon");
-          expiringItems.push(item);
-          scoreLossDrivers.push(item);
+        if (isExpiring) {
+          const x = item(category, evidence, "expiring_soon");
+          expiringItems.push(x);
+          scoreLossDrivers.push(x);
           scoreLossEstimate += Math.max(1, riskWeight);
         }
 
-        if (!verified) {
-          const item = itemPayload(category, evidence, "pending_review");
-          pendingItems.push(item);
-          scoreLossDrivers.push(item);
+        if (!isVerified) {
+          const x = item(category, evidence, "pending_review");
+          pendingItems.push(x);
+          scoreLossDrivers.push(x);
           scoreLossEstimate += Math.max(1, riskWeight);
         }
 
-        if (needsRequiredFields(category) && !hasRequiredFacts(category, facts, company, evidence)) {
+        if (!hasRequiredFacts(category, facts, company, evidence)) {
           incompleteFieldsCount++;
-          const item = itemPayload(category, evidence, "incomplete_extracted_fields");
-          scoreLossDrivers.push(item);
+          const x = item(category, evidence, "incomplete_extracted_fields");
+          scoreLossDrivers.push(x);
           scoreLossEstimate += Math.max(1, weight * 0.25);
         }
 
-        if (available && !expired) {
-          earnedWeight += verified ? weight : weight * 0.55;
-          if (expiring) earnedWeight -= Math.max(1, riskWeight);
+        if (isAvailable && !isExpired) {
+          earnedWeight += isVerified ? weight : weight * 0.55;
+          if (isExpiring) earnedWeight -= Math.max(1, riskWeight);
         }
       }
 
@@ -396,25 +358,14 @@ export async function POST(request: Request) {
       const expiringCount = expiringItems.length;
       const pendingReviewCount = pendingItems.length;
       const baseScore = totalWeight ? (earnedWeight / totalWeight) * 100 : 0;
-      const evidenceHealthScore = Math.max(
-        0,
-        Math.min(100, Math.round((baseScore - expiredCount * 1.5 - expiringCount * 0.5 - incompleteFieldsCount * 0.75) * 100) / 100)
-      );
-
-      const healthStatus = fatalGateRiskCount
-        ? "CRITICAL"
-        : expiredCount || missingCount
-        ? "WEAK"
-        : expiringCount || pendingReviewCount || incompleteFieldsCount
-        ? "WATCHLIST"
-        : "HEALTHY";
-
+      const evidenceHealthScore = Math.max(0, Math.min(100, Math.round((baseScore - expiredCount * 1.5 - expiringCount * 0.5 - incompleteFieldsCount * 0.75) * 100) / 100));
+      const healthStatus = fatalGateRiskCount ? "CRITICAL" : expiredCount || missingCount ? "WEAK" : expiringCount || pendingReviewCount || incompleteFieldsCount ? "WATCHLIST" : "HEALTHY";
       const nextActions = [
-        ...blockerItems.slice(0, 8).map((item) => actionFromItem(item, item.reason || "blocker")),
-        ...missingItems.slice(0, 8).map((item) => actionFromItem(item, "missing")),
-        ...expiredItems.slice(0, 8).map((item) => actionFromItem(item, "expired")),
-        ...expiringItems.slice(0, 8).map((item) => actionFromItem(item, "expiring")),
-        ...pendingItems.slice(0, 8).map((item) => actionFromItem(item, "pending_review")),
+        ...blockerItems.slice(0, 8).map((x) => actionFrom(x, x.reason || "blocker")),
+        ...missingItems.slice(0, 8).map((x) => actionFrom(x, "missing")),
+        ...expiredItems.slice(0, 8).map((x) => actionFrom(x, "expired")),
+        ...expiringItems.slice(0, 8).map((x) => actionFrom(x, "expiring")),
+        ...pendingItems.slice(0, 8).map((x) => actionFrom(x, "pending_review")),
       ].slice(0, 25);
 
       snapshots.push({
@@ -445,18 +396,17 @@ export async function POST(request: Request) {
         source_table: SOURCE_TABLE,
       });
 
-      for (const item of [...blockerItems, ...expiredItems, ...expiringItems].slice(0, 20)) {
+      for (const x of [...blockerItems, ...expiredItems, ...expiringItems].slice(0, 20)) {
         tasks.push({
           company_id: companyId(company),
           company_code: companyCode(company),
           company_name: companyName(company),
-          evidence_id: null,
-          category_code: item.category_code,
-          task_type: item.reason === "expired" ? "REPLACE_EXPIRED_DOCUMENT" : item.reason === "expiring_soon" ? "RENEW_EXPIRING_CERT" : "COLLECT_NEW_DOCUMENT",
-          priority: item.gate_impact === "FATAL_GATE" ? "CRITICAL" : item.scoring_impact === "CRITICAL" ? "HIGH" : "MEDIUM",
-          due_date: item.reason === "expiring_soon" && item.expiry_date ? item.expiry_date : null,
+          category_code: x.category_code,
+          task_type: x.reason === "expired" ? "REPLACE_EXPIRED_DOCUMENT" : x.reason === "expiring_soon" ? "RENEW_EXPIRING_CERT" : "COLLECT_NEW_DOCUMENT",
+          priority: x.gate_impact === "FATAL_GATE" ? "CRITICAL" : x.scoring_impact === "CRITICAL" ? "HIGH" : "MEDIUM",
+          due_date: x.reason === "expiring_soon" && x.expiry_date ? x.expiry_date : null,
           task_status: "OPEN",
-          remarks: item.reason,
+          remarks: x.reason,
           source_context: SOURCE_TABLE,
         });
       }
@@ -464,7 +414,6 @@ export async function POST(request: Request) {
 
     await supabase.from("company_evidence_health_snapshots").delete().eq("source_table", SOURCE_TABLE);
     await supabase.from("evidence_update_tasks").delete().eq("source_context", SOURCE_TABLE).eq("task_status", "OPEN");
-
     const insertedSnapshots = await insertChunks("company_evidence_health_snapshots", snapshots);
     const insertedTasks = await insertChunks("evidence_update_tasks", tasks);
 
