@@ -35,8 +35,16 @@ export default function RootLayout({
               CIDB
             </Link>
 
+            <Link href="/cidb-score" className="app-nav-icon app-nav-text" title="CIDB SCORE Register">
+              SCR
+            </Link>
+
             <Link href="/evidence" className="app-nav-icon" title="Evidence Register">
               ▣
+            </Link>
+
+            <Link href="/evidence-compliance" className="app-nav-icon app-nav-text" title="Evidence Compliance & Health">
+              EVH
             </Link>
 
             <Link href="/preq" className="app-nav-icon" title="Pre-Q Review">
