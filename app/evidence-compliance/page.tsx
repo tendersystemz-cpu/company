@@ -67,7 +67,18 @@ export default function EvidenceCompliancePage() {
 
     const list = (data || []) as HealthSnapshot[];
     setRows(list);
-    setSelected((current) => current || list[0] || null);
+    setSelected((current) => {
+      if (!list.length) return null;
+      if (!current) return list[0];
+      const updatedById = list.find((row) => row.id === current.id);
+      if (updatedById) return updatedById;
+      const updatedByCompany = list.find(
+        (row) =>
+          (current.company_code && row.company_code === current.company_code) ||
+          row.company_name === current.company_name
+      );
+      return updatedByCompany || list[0];
+    });
     setLoading(false);
   }
 
@@ -81,11 +92,15 @@ export default function EvidenceCompliancePage() {
     setMessage("Running evidence health evaluation...");
 
     try {
-      const response = await fetch("/api/evaluate-evidence-health-v1", { method: "POST" });
+      const response = await fetch("/api/evaluate-evidence-health-v1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "WORKS_CORE" }),
+      });
       const json = await response.json();
       if (!response.ok || !json.ok) throw new Error(json.error || "Evidence health evaluation failed");
       setMessage(
-        `Done. Critical ${json.summary?.critical ?? 0}, Weak ${json.summary?.weak ?? 0}, Watchlist ${json.summary?.watchlist ?? 0}, Healthy ${json.summary?.healthy ?? 0}.`
+        `Done (${json.version || "v1"}, ${json.scope || "WORKS_CORE"}). Critical ${json.summary?.critical ?? 0}, Weak ${json.summary?.weak ?? 0}, Watchlist ${json.summary?.watchlist ?? 0}, Healthy ${json.summary?.healthy ?? 0}.`
       );
       await loadData();
     } catch (err: any) {
@@ -123,7 +138,7 @@ export default function EvidenceCompliancePage() {
         <div>
           <div className="module-title">Evidence Compliance & Health</div>
           <div className="module-subtitle">
-            Living evidence lifecycle: gate risk, score impact, expiry and next action.
+            WORKS_CORE scope. Living evidence lifecycle: gate risk, score impact, expiry and next action.
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -301,6 +316,7 @@ function Section({ title, items, tone, actionMode }: { title: string; items: any
                 <span className="muted">
                   {item.score_area || "-"} / {item.gate_impact || "-"} / {item.scoring_impact || "-"}
                   {item.expiry_date ? ` / Expiry: ${item.expiry_date}` : ""}
+                  {item.inferred_from_company_master ? " / Master data only" : ""}
                 </span>
               </>
             )}
