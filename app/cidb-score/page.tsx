@@ -432,7 +432,9 @@ const listWrap: CSSProperties = {
 const companyButton: CSSProperties = {
   textAlign: "left",
   padding: 8,
-  border: "1px solid #d1d5db",
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "#d1d5db",
   borderRadius: 8,
   background: "#fff",
   cursor: "pointer",
