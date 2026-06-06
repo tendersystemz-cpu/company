@@ -138,12 +138,14 @@ alter table tender_compliance_assessments disable row level security;
 
 -- Keep current category checklist aligned with rule engine.
 -- CIDB_SCORE is a hard mandatory category. ISO_9001 is conditional/warning-level unless a tender explicitly requires it.
-insert into evidence_category_master (category_code, category_name, requirement_level, is_active, advisory_if_missing)
+-- category_group is NOT NULL in the current Supabase schema, so it must be supplied here.
+insert into evidence_category_master (category_code, category_name, category_group, requirement_level, is_active, advisory_if_missing)
 values
-  ('CIDB_SCORE', 'CIDB SCORE', 'mandatory', true, 'SCORE CIDB wajib disemak: star rating, tahun dan tarikh sah mesti jelas sebelum final tender pack.'),
-  ('ISO_9001', 'ISO 9001', 'conditional', true, 'ISO 9001 disemak untuk G7 atau tender yang mensyaratkannya; jangan samakan tahapnya dengan SCORE CIDB.')
+  ('CIDB_SCORE', 'CIDB SCORE', 'CIDB', 'mandatory', true, 'SCORE CIDB wajib disemak: star rating, tahun dan tarikh sah mesti jelas sebelum final tender pack.'),
+  ('ISO_9001', 'ISO 9001', 'CIDB', 'conditional', true, 'ISO 9001 disemak untuk G7 atau tender yang mensyaratkannya; jangan samakan tahapnya dengan SCORE CIDB.')
 on conflict (category_code) do update set
   category_name = excluded.category_name,
+  category_group = excluded.category_group,
   requirement_level = excluded.requirement_level,
   is_active = excluded.is_active,
   advisory_if_missing = excluded.advisory_if_missing;
