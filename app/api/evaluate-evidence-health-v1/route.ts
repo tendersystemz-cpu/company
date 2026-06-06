@@ -9,7 +9,7 @@ const supabase = createClient(
 );
 
 const SOURCE_TABLE = "sync:evidence-health-v1";
-const VERSION = "evidence-health-v1.1";
+const VERSION = "evidence-health-v1.2";
 
 const WORKS_CORE_CODES = new Set([
   "SSM_INFO",
@@ -209,10 +209,11 @@ function itemPayload(category: Row, evidence?: Row | null, reason?: string) {
     scoring_impact: txt(category.scoring_impact),
     default_weight: Number(category.default_weight || 0),
     evidence_status: evidence ? pick(evidence, ["status", "lifecycle_status", "verification_status"], "linked") : "missing",
-    evidence_url: evidence ? pick(evidence, ["evidence_url", "file_url", "url", "source_url"]) : "",
+    evidence_url: evidence ? pick(evidence, ["evidence_url", "file_url", "url", "source_url"]),
     expiry_date: expiryDate || null,
     days_to_expiry: expiryDate ? daysToExpiry(expiryDate) : null,
     inferred_from_company_master: Boolean(evidence?.inferred_from_company_master),
+    source_table: txt(evidence?.source_table || evidence?.source_type || evidence?.source_system || ""),
     reason: reason || "",
   };
 }
@@ -221,20 +222,25 @@ function needsRequiredFields(category: Row) {
   return Array.isArray(category.extract_required_fields) && category.extract_required_fields.length > 0;
 }
 
-function hasRequiredFacts(category: Row, facts: Row[], company: Row) {
+function hasRequiredFacts(category: Row, facts: Row[], company: Row, evidence?: Row | null) {
   const fields = Array.isArray(category.extract_required_fields) ? category.extract_required_fields : [];
   if (!fields.length) return true;
+
+  if (evidence && txt(evidence.extracted_fields_status).toUpperCase() === "COMPLETE") return true;
+
   const coId = txt(companyId(company));
   const coCode = txt(companyCode(company));
   const cat = txt(category.category_code);
+  const evidenceId = txt(evidence?.id);
 
   return fields.every((field: string) =>
     facts.some((fact) => {
+      const sameEvidence = evidenceId && txt(fact.evidence_id) === evidenceId;
       const sameCat = txt(fact.category_code) === cat;
       const sameCo = (coId && txt(fact.company_id) === coId) || (coCode && txt(fact.company_code) === coCode);
       const sameKey = txt(fact.fact_key) === txt(field);
       const hasValue = txt(fact.fact_value_text) || fact.fact_value_number !== null || fact.fact_value_date !== null;
-      return sameCat && sameCo && sameKey && hasValue;
+      return sameKey && hasValue && (sameEvidence || (sameCat && sameCo));
     })
   );
 }
@@ -292,7 +298,10 @@ export async function POST(request: Request) {
     const categories = (await readAllRows("evidence_category_master", 5000))
       .filter((cat) => cat.is_active !== false)
       .filter((cat) => shouldUseCategory(cat, scope));
-    const evidenceRows = await readAllRows("company_evidence_index", 50000);
+
+    const evidenceRegisterRows = await readAllRows("evidence_register", 50000);
+    const evidenceIndexRows = await readAllRows("company_evidence_index", 50000);
+    const evidenceRows = [...evidenceRegisterRows, ...evidenceIndexRows];
     const facts = await readAllRows("evidence_extracted_facts", 50000);
 
     const snapshots: Row[] = [];
@@ -368,7 +377,7 @@ export async function POST(request: Request) {
           scoreLossEstimate += Math.max(1, riskWeight);
         }
 
-        if (needsRequiredFields(category) && !hasRequiredFacts(category, facts, company)) {
+        if (needsRequiredFields(category) && !hasRequiredFacts(category, facts, company, evidence)) {
           incompleteFieldsCount++;
           const item = itemPayload(category, evidence, "incomplete_extracted_fields");
           scoreLossDrivers.push(item);
@@ -473,13 +482,18 @@ export async function POST(request: Request) {
       total_source_evidence: evidenceRows.length,
       total_generated_index: insertedSnapshots,
       total_missing_mandatory: snapshots.reduce((sum, row) => sum + Number(row.fatal_gate_risk_count || 0), 0),
-      message: `${VERSION}; scope ${scope}; snapshots ${insertedSnapshots}; tasks ${insertedTasks}.`,
+      message: `${VERSION}; scope ${scope}; evidence_register ${evidenceRegisterRows.length}; company_evidence_index ${evidenceIndexRows.length}; snapshots ${insertedSnapshots}; tasks ${insertedTasks}.`,
     });
 
     return NextResponse.json({
       ok: true,
       version: VERSION,
       scope,
+      evidenceSources: {
+        evidence_register: evidenceRegisterRows.length,
+        company_evidence_index: evidenceIndexRows.length,
+        combined: evidenceRows.length,
+      },
       totalCompanies: companies.length,
       totalCategories: categories.length,
       totalEvidenceRows: evidenceRows.length,
@@ -490,6 +504,7 @@ export async function POST(request: Request) {
         defaultScope: "WORKS_CORE",
         tenderSpecificEvidence: "tracked later by tender-specific requirement, not counted as generic core gap",
         inferredCompanyMaster: "partial credit only, still requires verified evidence for source-of-truth",
+        evidencePriority: "evidence_register rows are read before generated company_evidence_index rows",
       },
     });
   } catch (error: any) {
