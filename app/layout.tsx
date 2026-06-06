@@ -47,6 +47,10 @@ export default function RootLayout({
               EVH
             </Link>
 
+            <Link href="/evidence-tasks" className="app-nav-icon app-nav-text" title="Evidence Update Tasks">
+              EVT
+            </Link>
+
             <Link href="/preq" className="app-nav-icon" title="Pre-Q Review">
               ✓
             </Link>
