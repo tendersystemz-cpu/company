@@ -27,6 +27,10 @@ export default function RootLayout({
               ▦
             </Link>
 
+            <Link href="/company-master-full-import" className="app-nav-icon app-nav-text" title="Company Master Full Import">
+              CMF
+            </Link>
+
             <Link href="/ssm" className="app-nav-icon app-nav-text" title="SSM Information">
               SSM
             </Link>
