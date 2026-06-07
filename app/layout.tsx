@@ -20,6 +20,7 @@ export default function RootLayout({
             <div className="app-logo">✓</div>
             <Link href="/" className="app-nav-icon" title="Dashboard">⌂</Link>
             <Link href="/companies" className="app-nav-icon" title="Company Register">▦</Link>
+            <Link href="/sheet-infodata" className="app-nav-icon app-nav-text" title="Google Sheet Infodata Room">SHT</Link>
             <Link href="/company-master-full-import" className="app-nav-icon app-nav-text" title="Company Master Full Import">CMF</Link>
             <Link href="/pdf-vault" className="app-nav-icon app-nav-text" title="PDF Vault / Evidence Source of Truth">PDF</Link>
             <Link href="/eligibility-search" className="app-nav-icon app-nav-text" title="Group Eligibility Search">ELG</Link>
