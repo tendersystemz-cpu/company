@@ -18,7 +18,6 @@ export default function RootLayout({
         <div className="app-shell">
           <aside className="app-sidebar">
             <div className="app-logo">✓</div>
-
             <Link href="/" className="app-nav-icon" title="Dashboard">⌂</Link>
             <Link href="/companies" className="app-nav-icon" title="Company Register">▦</Link>
             <Link href="/company-master-full-import" className="app-nav-icon app-nav-text" title="Company Master Full Import">CMF</Link>
@@ -27,6 +26,7 @@ export default function RootLayout({
             <Link href="/preq-evaluation" className="app-nav-icon app-nav-text" title="Pre-Q Evaluation Room">PQR</Link>
             <Link href="/gap-audit" className="app-nav-icon app-nav-text" title="Infodata Gap Audit Room">GAP</Link>
             <Link href="/form-rooms" className="app-nav-icon app-nav-text" title="Tender Form Rooms">FRM</Link>
+            <Link href="/generate-infodata" className="app-nav-icon app-nav-text" title="Generate Tender Infodata">GEN</Link>
             <Link href="/kod-bidang-migration" className="app-nav-icon app-nav-text" title="Kod Bidang Migration">KB</Link>
             <Link href="/ssm" className="app-nav-icon app-nav-text" title="SSM Information">SSM</Link>
             <Link href="/cidb" className="app-nav-icon app-nav-text" title="CIDB Information">CIDB</Link>
