@@ -43,6 +43,10 @@ export default function RootLayout({
               PQR
             </Link>
 
+            <Link href="/gap-audit" className="app-nav-icon app-nav-text" title="Infodata Gap Audit Room">
+              GAP
+            </Link>
+
             <Link href="/kod-bidang-migration" className="app-nav-icon app-nav-text" title="Kod Bidang Migration">
               KB
             </Link>
