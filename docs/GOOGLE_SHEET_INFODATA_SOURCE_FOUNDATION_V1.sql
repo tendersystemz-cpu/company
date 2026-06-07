@@ -1,11 +1,6 @@
 -- Tender Systemz / Google Sheet Infodata Source Foundation V1
--- Purpose:
--- Store every Google Sheet shared by user as CLAIMED infodata before PDF evidence verification.
--- Rule:
--- Google Sheet = claimed intelligence / working data.
--- PDF evidence = source of truth.
--- No evidence = unverified.
--- Conflict = human review.
+-- Purpose: store every Google Sheet shared by user as CLAIMED infodata before PDF evidence verification.
+-- Rule: Google Sheet = claimed intelligence. PDF evidence = source of truth. Conflict = human review.
 
 create table if not exists public.google_sheet_infodata_sources (
   id uuid primary key default gen_random_uuid(),
@@ -47,7 +42,6 @@ create table if not exists public.google_sheet_infodata_batches (
 );
 
 create index if not exists idx_google_sheet_infodata_batches_source_code on public.google_sheet_infodata_batches(source_code);
-create index if not exists idx_google_sheet_infodata_batches_status on public.google_sheet_infodata_batches(status);
 
 create table if not exists public.google_sheet_infodata_raw_rows (
   id uuid primary key default gen_random_uuid(),
@@ -104,7 +98,6 @@ create table if not exists public.google_sheet_infodata_claims (
 create index if not exists idx_google_sheet_infodata_claims_company_id on public.google_sheet_infodata_claims(company_id);
 create index if not exists idx_google_sheet_infodata_claims_source_code on public.google_sheet_infodata_claims(source_code);
 create index if not exists idx_google_sheet_infodata_claims_room_code on public.google_sheet_infodata_claims(room_code);
-create index if not exists idx_google_sheet_infodata_claims_verification on public.google_sheet_infodata_claims(verification_status);
 
 create trigger trg_google_sheet_infodata_claims_set_updated_at
 before update on public.google_sheet_infodata_claims
@@ -127,7 +120,3 @@ on conflict (source_code) do update set
   priority = excluded.priority,
   description = excluded.description,
   updated_at = now();
-
-comment on table public.google_sheet_infodata_sources is 'Registry of user-shared Google Sheets used as claimed infodata sources.';
-comment on table public.google_sheet_infodata_raw_rows is 'Raw rows from any Google Sheet source. Data is preserved before PDF evidence verification.';
-comment on table public.google_sheet_infodata_claims is 'Field-level claimed facts extracted from Google Sheets before PDF verification.';
