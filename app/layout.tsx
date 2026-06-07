@@ -35,6 +35,10 @@ export default function RootLayout({
               PDF
             </Link>
 
+            <Link href="/eligibility-search" className="app-nav-icon app-nav-text" title="Group Eligibility Search">
+              ELG
+            </Link>
+
             <Link href="/kod-bidang-migration" className="app-nav-icon app-nav-text" title="Kod Bidang Migration">
               KB
             </Link>
