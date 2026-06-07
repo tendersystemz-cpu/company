@@ -30,7 +30,6 @@ type Company = {
 type PdfDoc = {
   id?: string;
   document_category?: string | null;
-  document_subcategory?: string | null;
   matched_company_code?: string | null;
   matched_company_name?: string | null;
   detected_company_name?: string | null;
@@ -64,6 +63,19 @@ type EligibilityRow = {
   reason: string;
   missingCore: string[];
   riskFlags: string[];
+};
+
+type Room = {
+  code: string;
+  title: string;
+  percent: number;
+  status: "OPEN" | "CONTROLLED" | "HOLD" | "BLOCKED";
+  inputGate: string;
+  verificationGate: string;
+  outputGate: string;
+  available: string[];
+  missing: string[];
+  review: string[];
 };
 
 const coreEvidence = ["SSM", "CIDB_PPK", "CIDB_SPKK", "CIDB_STB"];
@@ -105,7 +117,6 @@ const ldsbStructuredFacts = {
   classification_status: "ACTIVE",
   registered_address: "Lot 5, Second Floor, Block L, Lorong Inanam Point 3, Kota Kinabalu, Sabah 88450",
   phone: "08-8382882",
-  fax: "08-8382882",
   email: "lambaiandelta16@gmail.com",
   paid_up_capital: "RM 10,000,000.00",
   ppk: "15/11/2023 - 12/11/2026",
@@ -136,6 +147,10 @@ function toNumber(value: any) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function percent(count: number, total: number) {
+  return total ? Math.round((count / total) * 100) : 0;
+}
+
 function hasDoc(codes: Set<string>, code: string) {
   return codes.has(code);
 }
@@ -146,6 +161,11 @@ function isLdsb(company: Company) {
 
 function companySsm(company: Company) {
   return company.ssm_no || company.registration_no || company.raw_metadata?.ssm_no || company.raw_metadata?.SSM || "";
+}
+
+function hasRaw(company: Company, keys: string[]) {
+  const raw = company.raw_metadata || {};
+  return Object.entries(raw).some(([key, value]) => keys.some((needle) => norm(key).includes(norm(needle))) && txt(value));
 }
 
 function classifyDecision(company: Company, docs: PdfDoc[], reviews: ReviewItem[]): EligibilityRow {
@@ -165,11 +185,8 @@ function classifyDecision(company: Company, docs: PdfDoc[], reviews: ReviewItem[
   if (isLdsb(company)) riskFlags.push("Past disciplinary action detected in CIDB profile sample");
   if (docs.some((doc) => toNumber(doc.match_confidence) > 0 && toNumber(doc.match_confidence) < 0.65)) riskFlags.push("PDF-company match rendah");
 
-  const inferredCoreCount = [companySsm(company), company.cidb_no, company.cidb_no, company.cidb_no].filter(Boolean).length;
-  const coreScore = Math.max(
-    coreEvidence.reduce((sum, code) => sum + (evidenceCodes.has(code) ? 15 : 0), 0),
-    Math.min(45, inferredCoreCount * 10)
-  );
+  const inferredCoreCount = [companySsm(company), company.cidb_no, company.grade, company.state].filter(Boolean).length;
+  const coreScore = Math.max(coreEvidence.reduce((sum, code) => sum + (evidenceCodes.has(code) ? 15 : 0), 0), Math.min(45, inferredCoreCount * 10));
   const supportScore = supportEvidence.reduce((sum, code) => sum + (evidenceCodes.has(code) ? 5 : 0), 0);
   const preqScore = preq.includes("PATUH") && !preq.includes("TIDAK") ? 20 : preq.includes("TIDAK") ? -30 : 0;
   const reviewPenalty = reviews.length ? 15 : 0;
@@ -198,6 +215,119 @@ function classifyDecision(company: Company, docs: PdfDoc[], reviews: ReviewItem[
   return { company, docs, reviews, evidenceCodes, score, decision, reason, missingCore, riskFlags };
 }
 
+function buildRooms(row: EligibilityRow): Room[] {
+  const c = row.company;
+  const ssm = companySsm(c);
+  const isSample = isLdsb(c);
+  const facts = isSample ? ldsbStructuredFacts : null;
+  const blacklist = norm(c.blacklist || c.blacklist_status || c.raw_metadata?.blacklist || "");
+
+  function makeRoom(code: string, title: string, checks: [string, boolean][], review: string[] = []): Room {
+    const available = checks.filter(([, ok]) => ok).map(([label]) => label);
+    const missing = checks.filter(([, ok]) => !ok).map(([label]) => label);
+    const pct = percent(available.length, checks.length);
+    const hasRisk = review.length > 0;
+    return {
+      code,
+      title,
+      percent: pct,
+      status: pct >= 80 && !hasRisk ? "OPEN" : pct >= 50 ? "CONTROLLED" : hasRisk ? "HOLD" : "BLOCKED",
+      inputGate: available.length ? "DataMaster/PDF input detected" : "Waiting input",
+      verificationGate: row.docs.length || facts ? "Partial/verified evidence available" : "Claimed data only",
+      outputGate: pct >= 80 && !hasRisk ? "Allowed for tender output" : pct >= 50 ? "Conditional output" : "Hold output",
+      available,
+      missing,
+      review,
+    };
+  }
+
+  return [
+    makeRoom("identity", "Company Identity", [
+      ["Company name", !!c.company_name],
+      ["SSM no", !!ssm],
+      ["CIDB no", !!c.cidb_no || !!facts?.cidb_no],
+      ["State/address", !!c.state || !!facts?.registered_address],
+      ["Contact/email", !!c.contact_email || !!facts?.email],
+    ]),
+    makeRoom("cidb", "CIDB Qualification", [
+      ["CIDB no", !!c.cidb_no || !!facts?.cidb_no],
+      ["Grade", !!c.grade || !!facts?.categories],
+      ["PPK", hasDoc(row.evidenceCodes, "CIDB_PPK") || !!facts?.ppk],
+      ["SPKK", hasDoc(row.evidenceCodes, "CIDB_SPKK") || !!facts?.spkk],
+      ["STB", hasDoc(row.evidenceCodes, "CIDB_STB") || !!facts?.stb],
+      ["SCORE", hasDoc(row.evidenceCodes, "CIDB_SCORE") || !!facts?.score],
+      ["Kod bidang", !!facts?.sample_codes || hasRaw(c, ["CIDB", "KOD", "BIDANG", "PPK"]),
+      ],
+    ], facts?.score_conflict ? [facts.score_conflict] : []),
+    makeRoom("mof", "MOF / Vendor", [
+      ["MOF certificate", hasDoc(row.evidenceCodes, "MOF_VENDOR") || hasRaw(c, ["MOF"]),
+      ],
+      ["MOF kod bidang", hasRaw(c, ["MOF", "KOD BIDANG"]),
+      ],
+      ["Vendor status", hasRaw(c, ["VENDOR", "BUMIPUTERA"]),
+      ],
+    ]),
+    makeRoom("financial", "Financial", [
+      ["Paid-up capital", !!facts?.paid_up_capital || hasRaw(c, ["PAID", "MODAL"]),
+      ],
+      ["Audit report", hasDoc(row.evidenceCodes, "AUDIT_ANNUAL_REPORT")],
+      ["Bank statement/facility", hasDoc(row.evidenceCodes, "BANK_STATEMENT_FACILITY")],
+      ["TCC/tax", hasDoc(row.evidenceCodes, "TCC_TAX")],
+    ]),
+    makeRoom("people", "People / Competency", [
+      ["Directors", !!facts?.directors || hasRaw(c, ["DIRECTOR", "PENGARAH"]),
+      ],
+      ["Shareholders", !!facts?.shareholders || hasRaw(c, ["SHAREHOLDER", "SAHAM"]),
+      ],
+      ["Technical staff", !!facts?.technical_personnel || hasDoc(row.evidenceCodes, "STAFF_COMPETENCY_ACADEMIC")],
+      ["Competent person", !!facts?.competent_persons || hasRaw(c, ["COMPETENT", "KOMPETEN", "SKP"]),
+      ],
+      ["KWSP/SOCSO/SIP", hasDoc(row.evidenceCodes, "KWSP_SOCSO_SIP")],
+    ]),
+    makeRoom("experience", "Project Experience", [
+      ["LA", hasDoc(row.evidenceCodes, "PROJECT_EXPERIENCE_LA_CPC_GA") || hasRaw(c, ["LA", "LETTER OF AWARD"]),
+      ],
+      ["CPC", hasDoc(row.evidenceCodes, "PROJECT_EXPERIENCE_LA_CPC_GA") || hasRaw(c, ["CPC"]),
+      ],
+      ["GA / performance", hasDoc(row.evidenceCodes, "PROJECT_EXPERIENCE_LA_CPC_GA") || hasRaw(c, ["GA", "PERFORMANCE"]),
+      ],
+      ["Similar work category", !!facts?.sample_codes || hasRaw(c, ["KOD", "BIDANG", "CATEGORY"]),
+      ],
+    ]),
+    makeRoom("risk", "Risk / Review", [
+      ["No blacklist", !blacklist.includes("BLACKLIST")],
+      ["No conflict review", row.reviews.length === 0],
+      ["No low PDF match", !row.docs.some((doc) => toNumber(doc.match_confidence) > 0 && toNumber(doc.match_confidence) < 0.65)],
+      ["No disciplinary issue", !facts?.disciplinary],
+    ], [...row.riskFlags, ...(facts?.disciplinary ? [facts.disciplinary] : [])]),
+  ];
+}
+
+function buildEvaluation(row: EligibilityRow, rooms: Room[]) {
+  const roomAvg = Math.round(rooms.reduce((sum, room) => sum + room.percent, 0) / Math.max(1, rooms.length));
+  const evidencePercent = percent(row.docs.length, 10);
+  const finalPercent = Math.round(roomAvg * 0.65 + row.score * 0.25 + Math.min(evidencePercent, 100) * 0.1);
+  const failedRooms = rooms.filter((room) => room.status === "BLOCKED" || room.status === "HOLD");
+
+  const scoring = [
+    { label: "Data Room Completion", score: roomAvg, note: "Purata semua bilik data" },
+    { label: "Tender Eligibility", score: row.score, note: "Skor awal dari identity/evidence/risk" },
+    { label: "Evidence Attachment", score: Math.min(evidencePercent, 100), note: `${row.docs.length} PDF evidence linked` },
+    { label: "Risk Control", score: Math.max(0, 100 - row.riskFlags.length * 18 - row.reviews.length * 10), note: `${row.riskFlags.length} risk flag / ${row.reviews.length} review` },
+  ];
+
+  const suggestions: string[] = [];
+  for (const room of rooms) {
+    if (room.percent < 80) suggestions.push(`${room.title}: lengkapkan ${room.missing.slice(0, 3).join(", ") || "pending item"}.`);
+    if (room.review.length) suggestions.push(`${room.title}: review diperlukan - ${room.review[0]}`);
+  }
+  if (!row.docs.length) suggestions.unshift("Ikat PDF evidence dari Google Drive supaya DataMaster claim boleh naik taraf kepada verified facts.");
+  if (row.decision === "TIDAK LAYAK") suggestions.unshift("Jangan beli dokumen tender dahulu sehingga isu blacklist/tidak patuh diselesaikan.");
+  if (row.decision === "LAYAK BERSYARAT") suggestions.unshift("Boleh shortlist sementara, tetapi output tender pack mesti melalui human review.");
+
+  return { finalPercent, scoring, suggestions: Array.from(new Set(suggestions)).slice(0, 9), failedRooms };
+}
+
 function decisionStyle(decision: EligibilityRow["decision"]) {
   if (decision === "LAYAK") return { background: "#dcfce7", color: "#166534", border: "1px solid #86efac" };
   if (decision === "LAYAK BERSYARAT") return { background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" };
@@ -205,11 +335,55 @@ function decisionStyle(decision: EligibilityRow["decision"]) {
   return { background: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd" };
 }
 
+function roomStyle(status: Room["status"]) {
+  if (status === "OPEN") return { background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0" };
+  if (status === "CONTROLLED") return { background: "#fffbeb", color: "#92400e", border: "1px solid #fcd34d" };
+  if (status === "HOLD") return { background: "#eff6ff", color: "#1e40af", border: "1px solid #93c5fd" };
+  return { background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca" };
+}
+
 function DetailBox({ label, value }: { label: string; value: any }) {
   return (
-    <div className="compact-card" style={{ padding: 8 }}>
+    <div className="compact-card" style={{ padding: 7 }}>
       <div className="muted" style={{ fontWeight: 800 }}>{label}</div>
       <strong>{txt(value) || "-"}</strong>
+    </div>
+  );
+}
+
+function ProgressBar({ value }: { value: number }) {
+  return (
+    <div style={{ height: 7, background: "#e5e7eb", borderRadius: 999, overflow: "hidden", marginTop: 4 }}>
+      <div style={{ width: `${Math.max(0, Math.min(100, value))}%`, height: "100%", background: "#111827" }} />
+    </div>
+  );
+}
+
+function RoomCard({ room }: { room: Room }) {
+  return (
+    <div className="compact-card" style={{ padding: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
+        <strong>{room.title}</strong>
+        <span style={{ ...chip, ...roomStyle(room.status) }}>{room.status}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+        <strong style={{ fontSize: 14 }}>{room.percent}%</strong>
+        <div style={{ flex: 1 }}><ProgressBar value={room.percent} /></div>
+      </div>
+      <div className="muted" style={{ marginTop: 5 }}>IN: {room.inputGate}</div>
+      <div className="muted">VERIFY: {room.verificationGate}</div>
+      <div className="muted">OUT: {room.outputGate}</div>
+      {room.missing.length > 0 && <div className="muted" style={{ marginTop: 4 }}>Missing: {room.missing.slice(0, 3).join(", ")}</div>}
+    </div>
+  );
+}
+
+function ScoreLine({ label, score, note }: { label: string; score: number; note: string }) {
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><strong>{label}</strong><strong>{score}%</strong></div>
+      <ProgressBar value={score} />
+      <div className="muted">{note}</div>
     </div>
   );
 }
@@ -277,23 +451,21 @@ export default function EligibilitySearchPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  const rows = useMemo(() => {
-    return companies.map((company) => {
-      const companyCode = norm(company.company_code);
-      const companyName = norm(company.company_name);
-      const docs = pdfDocs.filter((doc) => {
-        const docCode = norm(doc.matched_company_code);
-        const docCompany = norm(doc.matched_company_name || doc.detected_company_name);
-        return (companyCode && docCode === companyCode) || (companyName && docCompany === companyName);
-      });
-      const reviews = reviewItems.filter((item) => {
-        const reviewCode = norm(item.company_code);
-        const reviewCompany = norm(item.company_name);
-        return (companyCode && reviewCode === companyCode) || (companyName && reviewCompany === companyName);
-      });
-      return classifyDecision(company, docs, reviews);
+  const rows = useMemo(() => companies.map((company) => {
+    const companyCode = norm(company.company_code);
+    const companyName = norm(company.company_name);
+    const docs = pdfDocs.filter((doc) => {
+      const docCode = norm(doc.matched_company_code);
+      const docCompany = norm(doc.matched_company_name || doc.detected_company_name);
+      return (companyCode && docCode === companyCode) || (companyName && docCompany === companyName);
     });
-  }, [companies, pdfDocs, reviewItems]);
+    const reviews = reviewItems.filter((item) => {
+      const reviewCode = norm(item.company_code);
+      const reviewCompany = norm(item.company_name);
+      return (companyCode && reviewCode === companyCode) || (companyName && reviewCompany === companyName);
+    });
+    return classifyDecision(company, docs, reviews);
+  }), [companies, pdfDocs, reviewItems]);
 
   const filteredRows = useMemo(() => {
     const q = norm(search);
@@ -316,7 +488,6 @@ export default function EligibilitySearchPage() {
   const selectedRow = filteredRows.find((row) => row.company.id === selectedCompanyId) || filteredRows[0];
   const states = useMemo(() => Array.from(new Set(companies.map((c) => txt(c.state)).filter(Boolean))).sort(), [companies]);
   const grades = useMemo(() => Array.from(new Set(companies.map((c) => txt(c.grade)).filter(Boolean))).sort(), [companies]);
-
   const kpi = useMemo(() => ({
     total: rows.length,
     layak: rows.filter((row) => row.decision === "LAYAK").length,
@@ -330,7 +501,7 @@ export default function EligibilitySearchPage() {
       <div className="module-header">
         <div>
           <div className="module-title">Company Tender Profile Search</div>
-          <div className="module-subtitle">Pilih satu syarikat → keluar profil tender seperti form tender, bukan sekadar list</div>
+          <div className="module-subtitle">Controlled Fact Rooms → compliance % → scoring → advisory → output gate</div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <button className="compact-button" onClick={importSample} disabled={importing}>{importing ? "Importing..." : "Import Sample DataMaster"}</button>
@@ -361,10 +532,10 @@ export default function EligibilitySearchPage() {
         </div>
       </section>
 
-      <div style={{ display: "grid", gridTemplateColumns: "340px minmax(0, 1fr)", gap: 8 }}>
-        <section className="compact-table-wrap" style={{ maxHeight: 680, overflow: "auto" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0, 1fr)", gap: 8 }}>
+        <section className="compact-table-wrap" style={{ maxHeight: 720, overflow: "auto" }}>
           <table>
-            <thead><tr><th>Company List</th><th>Decision</th></tr></thead>
+            <thead><tr><th>Company</th><th>Score</th></tr></thead>
             <tbody>
               {loading && <tr><td colSpan={2}>Loading...</td></tr>}
               {!loading && filteredRows.map((row) => (
@@ -377,10 +548,7 @@ export default function EligibilitySearchPage() {
           </table>
         </section>
 
-        <section>
-          {!selectedRow && <div className="compact-card">No company selected.</div>}
-          {selectedRow && <CompanyTenderProfile row={selectedRow} />}
-        </section>
+        <section>{!selectedRow ? <div className="compact-card">No company selected.</div> : <CompanyTenderProfile row={selectedRow} />}</section>
       </div>
     </main>
   );
@@ -391,97 +559,81 @@ function CompanyTenderProfile({ row }: { row: EligibilityRow }) {
   const ssm = companySsm(c);
   const isSample = isLdsb(c);
   const facts = isSample ? ldsbStructuredFacts : null;
+  const rooms = buildRooms(row);
+  const evaluation = buildEvaluation(row, rooms);
 
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div className="compact-dark-card">
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 150px 150px 150px", gap: 8, alignItems: "center" }}>
           <div>
-            <div style={{ color: "#cbd5e1", fontWeight: 800 }}>COMPANY TENDER PROFILE / FORM MAPPING VIEW</div>
+            <div style={{ color: "#cbd5e1", fontWeight: 800 }}>COMPANY TENDER PROFILE / ONE-PAGE INTELLIGENCE VIEW</div>
             <h2 style={{ color: "white", margin: "4px 0" }}>{c.company_name}</h2>
-            <div style={{ color: "#cbd5e1" }}>{c.company_code || "-"} | SSM {ssm || "-"} | CIDB {c.cidb_no || "-"}</div>
+            <div style={{ color: "#cbd5e1" }}>{c.company_code || "-"} | SSM {ssm || "-"} | CIDB {c.cidb_no || facts?.cidb_no || "-"}</div>
           </div>
-          <div><span style={{ ...chip, ...decisionStyle(row.decision) }}>{row.decision}</span><div style={{ color: "#cbd5e1", marginTop: 6 }}>Score {row.score}/100</div></div>
+          <div><div style={{ color: "#cbd5e1" }}>Compliance</div><strong>{evaluation.finalPercent}%</strong><ProgressBar value={evaluation.finalPercent} /></div>
+          <div><div style={{ color: "#cbd5e1" }}>Eligibility</div><strong>{row.score}/100</strong><ProgressBar value={row.score} /></div>
+          <div><span style={{ ...chip, ...decisionStyle(row.decision) }}>{row.decision}</span><div style={{ color: "#cbd5e1", marginTop: 6 }}>{row.reason}</div></div>
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
         <DetailBox label="Grade / Category" value={facts?.categories || c.grade} />
-        <DetailBox label="State" value={c.state || facts?.registered_address} />
+        <DetailBox label="State / Address" value={c.state || facts?.registered_address} />
         <DetailBox label="Status" value={facts?.classification_status || c.company_status || c.readiness_status} />
-        <DetailBox label="Expiry / Validity" value={facts?.current_expiry || "Pending PDF extraction"} />
+        <DetailBox label="Validity" value={facts?.current_expiry || "Pending PDF extraction"} />
       </div>
 
       <div className="compact-card">
-        <strong>1. Maklumat Am Petender</strong>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 8 }}>
-          <DetailBox label="Nama Syarikat" value={c.company_name} />
-          <DetailBox label="No. SSM" value={ssm} />
-          <DetailBox label="No. CIDB" value={c.cidb_no} />
-          <DetailBox label="Alamat" value={facts?.registered_address || c.business_address} />
-          <DetailBox label="Telefon" value={facts?.phone || c.contact_phone} />
-          <DetailBox label="Email" value={facts?.email || c.contact_email} />
-          <DetailBox label="Modal Berbayar" value={facts?.paid_up_capital || c.raw_metadata?.paid_up || "Pending extraction"} />
-          <DetailBox label="Group" value={c.group_name || c.raw_metadata?.group || "-"} />
-          <DetailBox label="PIC / Penama" value={c.contact_person || c.raw_metadata?.penama || "Pending extraction"} />
-        </div>
-      </div>
-
-      <div className="compact-card">
-        <strong>2. Pendaftaran & Kelayakan Tender</strong>
+        <strong>Controlled Fact Rooms / Bilik Data Terkawal</strong>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginTop: 8 }}>
-          <DetailBox label="PPK" value={facts?.ppk || (row.evidenceCodes.has("CIDB_PPK") ? "PDF linked" : "Pending PDF")} />
-          <DetailBox label="SPKK" value={facts?.spkk || (row.evidenceCodes.has("CIDB_SPKK") ? "PDF linked" : "Pending PDF")} />
-          <DetailBox label="STB" value={facts?.stb || (row.evidenceCodes.has("CIDB_STB") ? "PDF linked" : "Pending PDF")} />
-          <DetailBox label="SCORE" value={facts?.score || (row.evidenceCodes.has("CIDB_SCORE") ? "PDF linked" : "Pending PDF")} />
-        </div>
-        <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {coreEvidence.map((code) => <EvidenceChip key={code} ok={hasDoc(row.evidenceCodes, code) || (isSample && code.startsWith("CIDB_")) || (code === "SSM" && !!ssm)} label={categoryLabels[code] || code} />)}
-          {supportEvidence.map((code) => <EvidenceChip key={code} ok={hasDoc(row.evidenceCodes, code) || (isSample && code === "CIDB_SCORE")} label={categoryLabels[code] || code} />)}
-        </div>
-      </div>
-
-      <div className="compact-card">
-        <strong>3. Kod Bidang / Pengkhususan / Scope Matching</strong>
-        <p className="muted">Untuk tender sebenar, bahagian ini akan dibandingkan dengan requirement tender seperti G7 + CE40 + SPKK + STB + SCORE.</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <DetailBox label="Category Summary" value={facts?.categories || c.grade || "Pending CIDB PDF extraction"} />
-          <DetailBox label="Sample / Detected Codes" value={facts?.sample_codes || "Pending kod bidang extraction from DataMaster/PDF"} />
+          {rooms.map((room) => <RoomCard key={room.code} room={room} />)}
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <div className="compact-card">
-          <strong>4. Pengarah / Pemegang Saham / Ownership</strong>
-          <p className="muted">Form tender biasanya perlukan latar belakang syarikat, pemilik, pengarah, ekuiti dan penama.</p>
-          <DetailBox label="Directors" value={facts?.directors || "Pending SSM/CIDB extraction"} />
-          <DetailBox label="Shareholders" value={facts?.shareholders || "Pending SSM/CIDB extraction"} />
+          <strong>Compliance Scoring & Evaluation</strong>
+          <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+            {evaluation.scoring.map((item) => <ScoreLine key={item.label} label={item.label} score={item.score} note={item.note} />)}
+          </div>
         </div>
         <div className="compact-card">
-          <strong>5. Staff / Technical Personnel / Competency</strong>
-          <p className="muted">Digunakan untuk Borang E / keupayaan teknikal / staff competency.</p>
-          <DetailBox label="Key Management" value={facts?.key_management || "Pending extraction"} />
-          <DetailBox label="Technical / Competent Persons" value={facts ? `${facts.technical_personnel}; ${facts.competent_persons}` : "Pending extraction"} />
+          <strong>Cadangan / Review / Output Control</strong>
+          <div style={{ display: "grid", gap: 5, marginTop: 8 }}>
+            {evaluation.suggestions.map((item, index) => <div key={`${item}-${index}`}>• {item}</div>)}
+          </div>
+          <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+            <DetailBox label="SV Planning" value={evaluation.finalPercent >= 60 ? "Can plan with review" : "Hold"} />
+            <DetailBox label="Buy Document" value={row.decision === "LAYAK" ? "Recommended" : row.decision === "LAYAK BERSYARAT" ? "Conditional" : "Not recommended"} />
+            <DetailBox label="Tender Pack" value={evaluation.failedRooms.length ? "Controlled output" : "Can generate"} />
+          </div>
         </div>
       </div>
 
       <div className="compact-card">
-        <strong>6. Financial / Statutory / Experience Evidence</strong>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginTop: 8 }}>
-          <DetailBox label="Audit / Annual Report" value={row.evidenceCodes.has("AUDIT_ANNUAL_REPORT") ? "PDF linked" : "Pending"} />
-          <DetailBox label="Bank Statement / Facility" value={row.evidenceCodes.has("BANK_STATEMENT_FACILITY") ? "PDF linked" : "Pending"} />
-          <DetailBox label="KWSP / SOCSO / SIP" value={row.evidenceCodes.has("KWSP_SOCSO_SIP") ? "PDF linked" : "Pending"} />
-          <DetailBox label="LA / CPC / GA" value={row.evidenceCodes.has("PROJECT_EXPERIENCE_LA_CPC_GA") ? "PDF linked" : "Pending"} />
+        <strong>Form of Tender Mapping Data</strong>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 8, marginTop: 8 }}>
+          <DetailBox label="Company" value={c.company_name} />
+          <DetailBox label="SSM" value={ssm} />
+          <DetailBox label="CIDB" value={c.cidb_no || facts?.cidb_no} />
+          <DetailBox label="PPK/SPKK/STB" value={facts ? "Valid to 12/11/2026" : "Pending PDF"} />
+          <DetailBox label="SCORE" value={facts?.score || (row.evidenceCodes.has("CIDB_SCORE") ? "PDF linked" : "Pending")} />
+          <DetailBox label="Paid-up" value={facts?.paid_up_capital || c.raw_metadata?.paid_up || "Pending"} />
+          <DetailBox label="Kod Bidang" value={facts?.sample_codes || "Pending DataMaster/PDF mapping"} />
+          <DetailBox label="Directors" value={facts?.directors || "Pending"} />
+          <DetailBox label="Shareholders" value={facts?.shareholders || "Pending"} />
+          <DetailBox label="Technical" value={facts?.technical_personnel || "Pending"} />
+          <DetailBox label="Audit/Bank/TCC" value={["AUDIT_ANNUAL_REPORT", "BANK_STATEMENT_FACILITY", "TCC_TAX"].filter((code) => row.evidenceCodes.has(code)).map((code) => categoryLabels[code]).join(" / ") || "Pending"} />
+          <DetailBox label="LA/CPC/GA" value={row.evidenceCodes.has("PROJECT_EXPERIENCE_LA_CPC_GA") ? "PDF linked" : "Pending"} />
         </div>
       </div>
 
       <div className="compact-card">
-        <strong>7. Advisory / Gap / Cut-off Decision</strong>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
-          <DetailBox label="System Decision" value={row.decision} />
-          <DetailBox label="Reason" value={row.reason} />
-          <DetailBox label="Risk Flags" value={row.riskFlags.join("; ") || "No major flag from current data"} />
-          <DetailBox label="PDF Review Items" value={`${row.docs.length} PDF linked / ${row.reviews.length} review item`} />
+        <strong>Evidence Gate</strong>
+        <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {coreEvidence.map((code) => <EvidenceChip key={code} ok={hasDoc(row.evidenceCodes, code) || (isSample && code.startsWith("CIDB_")) || (code === "SSM" && !!ssm)} label={categoryLabels[code] || code} />)}
+          {supportEvidence.map((code) => <EvidenceChip key={code} ok={hasDoc(row.evidenceCodes, code) || (isSample && code === "CIDB_SCORE")} label={categoryLabels[code] || code} />)}
         </div>
         {facts?.disciplinary && <div style={{ marginTop: 8, background: "#fffbeb", color: "#92400e", padding: 8, borderRadius: 8 }}><strong>Disciplinary Note:</strong> {facts.disciplinary}</div>}
         {facts?.score_conflict && <div style={{ marginTop: 8, background: "#eff6ff", color: "#1e40af", padding: 8, borderRadius: 8 }}><strong>SCORE Review:</strong> {facts.score_conflict}</div>}
