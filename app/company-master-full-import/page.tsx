@@ -35,7 +35,7 @@ type RawImport = {
 };
 
 const DEFAULT_SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/1e7KJPErrFYH3xrIMJEhD8SDbRFzZBx9MzqCtI1ROO-s/edit?usp=sharing";
+  "https://docs.google.com/spreadsheets/d/1b8EDNPgUkW89g6wsrZZ0SX7RWqM8UX0k8-qJtNR6aQc";
 
 export default function CompanyMasterFullImportPage() {
   const [sheetUrl, setSheetUrl] = useState(DEFAULT_SHEET_URL);
@@ -116,7 +116,7 @@ export default function CompanyMasterFullImportPage() {
   async function fetchCsvFromSheet() {
     setLoading(true);
     setError("");
-    setMessage("Fetching Google Sheet CSV...");
+    setMessage("Fetching Google Sheet CSV from actual company dashboard sheet...");
 
     try {
       const response = await fetch("/api/fetch-sheet-csv", {
@@ -127,7 +127,7 @@ export default function CompanyMasterFullImportPage() {
       const json = await response.json();
       if (!response.ok || !json.ok) throw new Error(json.error || "Failed to fetch Google Sheet CSV.");
       setCsvText(json.csv || "");
-      setMessage(`CSV loaded. Used URL: ${json.usedUrl}`);
+      setMessage(`CSV loaded. Used URL: ${json.usedUrl}. Click Full Import to Staging next.`);
     } catch (err: any) {
       setError(err?.message || "Failed to fetch CSV.");
     } finally {
@@ -152,14 +152,14 @@ export default function CompanyMasterFullImportPage() {
         body: JSON.stringify({
           csv: csvText,
           source_url: sheetUrl,
-          source_sheet_name: "DATA MASTER COMPANY",
-          import_name: "DATA MASTER COMPANY FULL IMPORT",
+          source_sheet_name: "DATA MASTER COMPANY - NEW",
+          import_name: "DATA MASTER COMPANY ACTUAL COMPANY LIST IMPORT",
         }),
       });
       const json = await response.json();
       if (!response.ok || !json.ok) throw new Error(json.error || "Full import failed.");
 
-      setMessage(`Full import done. Batch ${json.batch_id}. Imported ${json.imported_rows}/${json.total_raw_rows} raw rows.`);
+      setMessage(`Full import done. Batch ${json.batch_id}. Imported ${json.imported_rows}/${json.total_raw_rows} raw rows. Headers: ${(json.sample_headers || []).join(", ")}`);
       await loadBatches();
       setSelectedBatchId(json.batch_id);
       await loadRows(json.batch_id);
@@ -194,7 +194,7 @@ export default function CompanyMasterFullImportPage() {
         <div>
           <div className="module-title">Company Master Full Import</div>
           <div className="module-subtitle">
-            Stage all DATA MASTER COMPANY columns as raw source input. This does not overwrite source-of-truth tables.
+            Stage actual DATA MASTER COMPANY rows. This does not overwrite source-of-truth tables.
           </div>
         </div>
         <button className="compact-button-light" onClick={() => loadRows()} disabled={loading || importing}>
@@ -204,7 +204,7 @@ export default function CompanyMasterFullImportPage() {
 
       <section className="compact-card" style={importBox}>
         <label style={labelStyle}>
-          DATA MASTER COMPANY Google Sheet URL
+          Actual DATA MASTER COMPANY Google Sheet URL
           <input value={sheetUrl} onChange={(event) => setSheetUrl(event.target.value)} style={inputStyle} />
         </label>
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -215,12 +215,7 @@ export default function CompanyMasterFullImportPage() {
             {importing ? "Importing..." : "Full Import to Staging"}
           </button>
         </div>
-        <textarea
-          value={csvText}
-          onChange={(event) => setCsvText(event.target.value)}
-          placeholder="CSV preview / paste CSV here"
-          style={{ ...inputStyle, minHeight: 90, marginTop: 8 }}
-        />
+        <textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} placeholder="CSV preview / paste CSV here" style={{ ...inputStyle, minHeight: 90, marginTop: 8 }} />
       </section>
 
       {message ? <div style={notice}>{message}</div> : null}
@@ -236,19 +231,10 @@ export default function CompanyMasterFullImportPage() {
       <div style={layout}>
         <section className="compact-card" style={leftPanel}>
           <div style={filterGrid}>
-            <select
-              value={selectedBatchId}
-              onChange={(event) => {
-                setSelectedBatchId(event.target.value);
-                loadRows(event.target.value);
-              }}
-              style={inputStyle}
-            >
+            <select value={selectedBatchId} onChange={(event) => { setSelectedBatchId(event.target.value); loadRows(event.target.value); }} style={inputStyle}>
               <option value="LATEST">Latest Successful Batch</option>
               {batches.map((batch) => (
-                <option key={batch.id} value={batch.id}>
-                  {batch.created_at?.slice(0, 19)} / {batch.imported_rows} rows
-                </option>
+                <option key={batch.id} value={batch.id}>{batch.created_at?.slice(0, 19)} / {batch.imported_rows} rows / {batch.source_sheet_name}</option>
               ))}
             </select>
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search raw import..." style={inputStyle} />
@@ -257,16 +243,12 @@ export default function CompanyMasterFullImportPage() {
           <div style={listWrap}>
             {loading ? <div style={notice}>Loading rows...</div> : null}
             {!loading && filteredRows.length === 0 ? <div className="muted">No raw imported rows.</div> : null}
-
             {filteredRows.map((row) => {
               const active = selected?.id === row.id;
               return (
                 <button key={row.id} onClick={() => setSelected(row)} style={{ ...rowButton, ...(active ? rowButtonActive : {}) }}>
-                  <b>{row.source_row_number || "-"}. {row.company_name || "No company detected"}</b>
-                  <br />
-                  <span className="muted">
-                    Grade {row.detected_grade || "-"} / {row.detected_state || "-"} / {row.mapping_status}
-                  </span>
+                  <b>{row.source_row_number || "-"}. {row.company_name || "No company detected"}</b><br />
+                  <span className="muted">Grade {row.detected_grade || "-"} / {row.detected_state || "-"} / {row.mapping_status}</span>
                 </button>
               );
             })}
@@ -274,9 +256,7 @@ export default function CompanyMasterFullImportPage() {
         </section>
 
         <section className="compact-card" style={rightPanel}>
-          {!selected ? (
-            <div className="muted">Select raw imported row.</div>
-          ) : (
+          {!selected ? <div className="muted">Select raw imported row.</div> : (
             <>
               <h2 style={h2}>{selected.company_name || "No company detected"}</h2>
               <div style={metaGrid}>
@@ -289,17 +269,8 @@ export default function CompanyMasterFullImportPage() {
                 <Info label="Mapping" value={selected.mapping_status || "-"} />
                 <Info label="Review" value={selected.review_status || "-"} />
               </div>
-
               <h3 style={h3}>Raw Row Data</h3>
-              <div style={rawGrid}>
-                {headers.map((header) => (
-                  <div key={header} style={rawItem}>
-                    <span className="muted">{header}</span>
-                    <br />
-                    <b>{String(selected.raw_row_data?.[header] ?? "-")}</b>
-                  </div>
-                ))}
-              </div>
+              <div style={rawGrid}>{headers.map((header) => <div key={header} style={rawItem}><span className="muted">{header}</span><br /><b>{String(selected.raw_row_data?.[header] ?? "-")}</b></div>)}</div>
             </>
           )}
         </section>
@@ -308,14 +279,8 @@ export default function CompanyMasterFullImportPage() {
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: number }) {
-  return <div className="compact-card"><span className="muted">{label}</span><br /><b>{value}</b></div>;
-}
-
-function Info({ label, value }: { label: string; value: any }) {
-  return <div style={infoBox}><span className="muted">{label}</span><br /><b>{value}</b></div>;
-}
-
+function MiniStat({ label, value }: { label: string; value: number }) { return <div className="compact-card"><span className="muted">{label}</span><br /><b>{value}</b></div>; }
+function Info({ label, value }: { label: string; value: any }) { return <div style={infoBox}><span className="muted">{label}</span><br /><b>{value}</b></div>; }
 const importBox: CSSProperties = { padding: 10, marginBottom: 8 };
 const statsGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(4, 150px)", gap: 8, marginBottom: 8 };
 const layout: CSSProperties = { display: "grid", gridTemplateColumns: "420px minmax(0, 1fr)", gap: 10 };
