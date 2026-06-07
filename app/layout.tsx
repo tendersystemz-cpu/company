@@ -39,6 +39,10 @@ export default function RootLayout({
               ELG
             </Link>
 
+            <Link href="/preq-evaluation" className="app-nav-icon app-nav-text" title="Pre-Q Evaluation Room">
+              PQR
+            </Link>
+
             <Link href="/kod-bidang-migration" className="app-nav-icon app-nav-text" title="Kod Bidang Migration">
               KB
             </Link>
