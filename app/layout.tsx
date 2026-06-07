@@ -27,6 +27,7 @@ export default function RootLayout({
             <Link href="/gap-audit" className="app-nav-icon app-nav-text" title="Infodata Gap Audit Room">GAP</Link>
             <Link href="/form-rooms" className="app-nav-icon app-nav-text" title="Tender Form Rooms">FRM</Link>
             <Link href="/generate-infodata" className="app-nav-icon app-nav-text" title="Generate Tender Infodata">GEN</Link>
+            <Link href="/tender-pack-drafts" className="app-nav-icon app-nav-text" title="Tender Pack Draft Room">TPK</Link>
             <Link href="/kod-bidang-migration" className="app-nav-icon app-nav-text" title="Kod Bidang Migration">KB</Link>
             <Link href="/ssm" className="app-nav-icon app-nav-text" title="SSM Information">SSM</Link>
             <Link href="/cidb" className="app-nav-icon app-nav-text" title="CIDB Information">CIDB</Link>
