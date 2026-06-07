@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 
@@ -29,6 +29,10 @@ export default function RootLayout({
 
             <Link href="/company-master-full-import" className="app-nav-icon app-nav-text" title="Company Master Full Import">
               CMF
+            </Link>
+
+            <Link href="/pdf-vault" className="app-nav-icon app-nav-text" title="PDF Vault / Evidence Source of Truth">
+              PDF
             </Link>
 
             <Link href="/kod-bidang-migration" className="app-nav-icon app-nav-text" title="Kod Bidang Migration">
@@ -85,7 +89,7 @@ export default function RootLayout({
               <div>
                 <div className="app-title">Tender Readiness System</div>
                 <div className="app-subtitle">
-                  Evidence → Compliance → Scoring → Advisory → Tender Pack
+                  PDF Vault → Verified Facts → Eligibility → Scoring → Tender Pack
                 </div>
               </div>
             </div>
