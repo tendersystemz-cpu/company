@@ -21,6 +21,7 @@ export default function RootLayout({
             <Link href="/" className="app-nav-icon" title="Dashboard">⌂</Link>
             <Link href="/companies" className="app-nav-icon" title="Company Register">▦</Link>
             <Link href="/sheet-infodata" className="app-nav-icon app-nav-text" title="Google Sheet Infodata Room">SHT</Link>
+            <Link href="/company-intelligence" className="app-nav-icon app-nav-text" title="One Company Intelligence View">ONE</Link>
             <Link href="/eligibility-search" className="app-nav-icon app-nav-text" title="Company Profile Search">ELG</Link>
             <Link href="/pdf-vault" className="app-nav-icon app-nav-text" title="PDF Vault">PDF</Link>
             <Link href="/preq-evaluation" className="app-nav-icon app-nav-text" title="Pre-Q Evaluation">PQR</Link>
@@ -32,7 +33,7 @@ export default function RootLayout({
             <div className="app-topbar">
               <div>
                 <div className="app-title">Tender Readiness System</div>
-                <div className="app-subtitle">Sheet Infodata → Company Profile → Evidence → Compliance Simulation</div>
+                <div className="app-subtitle">Sheet Infodata → One Company View → Evidence → Compliance Simulation</div>
               </div>
             </div>
             <div className="app-page">{children}</div>
