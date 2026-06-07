@@ -31,6 +31,10 @@ export default function RootLayout({
               CMF
             </Link>
 
+            <Link href="/kod-bidang-migration" className="app-nav-icon app-nav-text" title="Kod Bidang Migration">
+              KB
+            </Link>
+
             <Link href="/ssm" className="app-nav-icon app-nav-text" title="SSM Information">
               SSM
             </Link>
