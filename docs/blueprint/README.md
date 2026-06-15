@@ -1,6 +1,6 @@
 # Master Blueprint — Company InfoHub & Tender Operating System
 
-Dokumen ini ialah master blueprint untuk membangunkan aplikasi Company InfoHub & Tender Operating System secara modular, sistematik dan boleh dikembangkan.
+Dokumen ini ialah master blueprint rasmi untuk membangunkan aplikasi Company InfoHub & Tender Operating System secara modular, sistematik dan boleh dikembangkan.
 
 Sistem ini ialah platform operasi half-autonomous untuk mengurus portfolio 100+ syarikat, evidence PDF, compliance, tender matching, pricing, output generation dan approval.
 
@@ -33,6 +33,10 @@ DATA + BUKTI -> SEMAKAN -> PEMATUHAN -> PEMARKAHAN -> NASIHAT -> GENERATE OUTPUT
 | 07 | Config, Governance & Modul 13 | [07-config-governance-modul-13.md](./07-config-governance-modul-13.md) |
 | 08 | Data Architecture ERD | [08-data-architecture-erd.md](./08-data-architecture-erd.md) |
 | 09 | Development Roadmap | [09-development-roadmap.md](./09-development-roadmap.md) |
+| 10 | User Role & Permission | [10-user-role-permission.md](./10-user-role-permission.md) |
+| 11 | Portfolio Command Centre | [11-portfolio-command-centre.md](./11-portfolio-command-centre.md) |
+| 12 | Tender Submission Control | [12-tender-submission-control.md](./12-tender-submission-control.md) |
+| 13 | Modular App Route Map | [13-modular-app-route-map.md](./13-modular-app-route-map.md) |
 
 ## Current Technical Stack
 
@@ -40,9 +44,41 @@ DATA + BUKTI -> SEMAKAN -> PEMATUHAN -> PEMARKAHAN -> NASIHAT -> GENERATE OUTPUT
 Next.js + Supabase + Google Drive Evidence Link + Compact Admin UI
 ```
 
+## Existing App Routes To Be Expanded
+
+| Existing Route | Future Module |
+|---|---|
+| `/` | Portfolio Command Centre |
+| `/companies` | Company InfoHub / Company Master |
+| `/evidence` | Evidence Vault App |
+| `/preq` | Verification Queue / Compliance Review |
+| `/matrix` | Compliance Matrix / Requirement Mapping |
+| `/readiness` | Readiness Engine Basic |
+| `/ssm` | SSM & Legal Info Module |
+| `/cidb` | CIDB Register / Licence Module |
+| `/tender-rules` | Tender Requirement Register |
+| `/api-test` | Backend Connectivity Test Layer |
+
 ## Development Rule
 
-Setiap modul perlu menghasilkan purpose, sub-modules, workflow, database tables, UI routes, API functions, output generated dan Mermaid workflow diagram.
+Setiap modul perlu menghasilkan:
+
+1. purpose;
+2. sub-modules;
+3. workflow;
+4. database tables;
+5. UI routes;
+6. API functions;
+7. output generated;
+8. Mermaid workflow diagram.
+
+## FigJam / Visual Blueprint
+
+Editable FigJam board:
+
+```text
+https://www.figma.com/board/tuPKmn4oHUNOxx9iBEXuwF
+```
 
 ## DONE -> NEXT STEP
 
