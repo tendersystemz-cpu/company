@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-type Row = Record<string, any>;
+type Row = Record<string, unknown>;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -10,11 +10,11 @@ const supabase = createClient(
 
 const SYNC_SOURCE = "sync:readiness-evaluation-v3";
 
-function txt(v: any) {
+function txt(v: unknown) {
   return String(v ?? "").trim();
 }
 
-function n(v: any) {
+function n(v: unknown) {
   return txt(v).toLowerCase();
 }
 
@@ -90,10 +90,11 @@ async function readAllRows(table: string, limit = 50000) {
   return rows.slice(0, limit);
 }
 
-function daysToExpiry(value: any) {
-  if (!value) return null;
+function daysToExpiry(value: unknown) {
+  const dateValue = txt(value);
+  if (!dateValue) return null;
 
-  const d = new Date(value);
+  const d = new Date(dateValue);
   if (Number.isNaN(d.getTime())) return null;
 
   const today = new Date();
@@ -224,8 +225,8 @@ function categoryState(categoryCode: string, evidenceRows: Row[]) {
 
 function buildNextActions(params: {
   missingMandatory: Row[];
-  expiredStates: any[];
-  expiringStates: any[];
+  expiredStates: Row[];
+  expiringStates: Row[];
   supportingMissing: Row[];
 }) {
   const actions: Row[] = [];
@@ -236,7 +237,7 @@ function buildNextActions(params: {
       type: "missing_mandatory",
       category_code: cat.category_code,
       title: `Lengkapkan dokumen wajib: ${cat.category_name || cat.category_code}`,
-      action: cat.advisory_if_missing || "Upload/link evidence wajib sebelum final tender submission.",
+      action: cat.advisory_if_missing || "Upload/link official evidence before marking the company verified.",
     });
   }
 
@@ -251,13 +252,14 @@ function buildNextActions(params: {
   }
 
   for (const state of params.expiringStates.slice(0, 20)) {
-    const days = daysToExpiry(state.bestRow?.expiry_date);
+    const bestRow = state.bestRow as Row | null | undefined;
+    const days = daysToExpiry(bestRow?.expiry_date);
     actions.push({
       severity: "high",
       type: "expiring",
       category_code: state.category_code,
       title: `Semak expiry: ${state.category_code}`,
-      action: `Dokumen akan tamat ${days ?? "-"} hari. Renew jika tender submission melepasi tempoh sah.`,
+      action: `Dokumen akan tamat ${days ?? "-"} hari. Renew or verify a newer source document.`,
     });
   }
 
@@ -267,7 +269,7 @@ function buildNextActions(params: {
       type: "missing_supporting",
       category_code: cat.category_code,
       title: `Tambah dokumen sokongan: ${cat.category_name || cat.category_code}`,
-      action: cat.advisory_if_missing || "Dokumen sokongan boleh menambah kekuatan markah tender.",
+      action: cat.advisory_if_missing || "Add supporting evidence to reduce current compliance uncertainty.",
     });
   }
 
@@ -314,18 +316,18 @@ export async function POST() {
 
       const states = allCategoryCodes.map((code) => categoryState(code, relatedEvidence));
 
-      const stateMap = new Map<string, any>();
+      const stateMap = new Map<string, ReturnType<typeof categoryState>>();
       for (const state of states) {
         stateMap.set(state.category_code, state);
       }
 
-      const mandatoryAvailable = mandatoryCats.filter((cat) => stateMap.get(cat.category_code)?.available);
-      const mandatoryMissing = mandatoryCats.filter((cat) => !stateMap.get(cat.category_code)?.available);
+      const mandatoryAvailable = mandatoryCats.filter((cat) => stateMap.get(txt(cat.category_code))?.available);
+      const mandatoryMissing = mandatoryCats.filter((cat) => !stateMap.get(txt(cat.category_code))?.available);
 
-      const supportingAvailable = supportingCats.filter((cat) => stateMap.get(cat.category_code)?.available);
-      const supportingMissing = supportingCats.filter((cat) => !stateMap.get(cat.category_code)?.available);
+      const supportingAvailable = supportingCats.filter((cat) => stateMap.get(txt(cat.category_code))?.available);
+      const supportingMissing = supportingCats.filter((cat) => !stateMap.get(txt(cat.category_code))?.available);
 
-      const conditionalAvailable = conditionalCats.filter((cat) => stateMap.get(cat.category_code)?.available);
+      const conditionalAvailable = conditionalCats.filter((cat) => stateMap.get(txt(cat.category_code))?.available);
 
       const expiredStates = states.filter((state) => state.expired);
       const expiringStates = states.filter((state) => state.expiring);
@@ -333,7 +335,7 @@ export async function POST() {
       const expiredCategories = expiredStates.map((state) => state.category_code);
       const expiringCategories = expiringStates.map((state) => state.category_code);
 
-      const expiredMandatoryExists = mandatoryCats.some((cat) => stateMap.get(cat.category_code)?.expired);
+      const expiredMandatoryExists = mandatoryCats.some((cat) => stateMap.get(txt(cat.category_code))?.expired);
 
       const mandatoryScore = scorePart(mandatoryAvailable.length, mandatoryCats.length, 60);
       const supportingScore = scorePart(supportingAvailable.length, supportingCats.length, 25);
@@ -350,16 +352,16 @@ export async function POST() {
 
       if (!categories.length || !companyName(company)) {
         readinessStatus = "Need Review";
-        advisorySummary = "Data syarikat atau evidence category belum cukup untuk penilaian.";
+        advisorySummary = "Company data or evidence categories are incomplete. Review imported source data before verification.";
       } else if (mandatoryMissing.length > 0 || expiredMandatoryExists) {
         readinessStatus = "Not Ready";
-        advisorySummary = "Dokumen wajib belum lengkap atau ada dokumen wajib yang expired. Jangan generate final tender pack lagi.";
+        advisorySummary = "Mandatory evidence is missing or expired. Resolve source documents before current state can be treated as verified.";
       } else if (expiringStates.length > 0 || expiredStates.length > 0 || supportingMissing.length > 0) {
         readinessStatus = "Conditional";
-        advisorySummary = "Boleh proceed secara conditional, tetapi dokumen sokongan/expiry risk perlu diselesaikan sebelum final submission.";
+        advisorySummary = "Current state is partially supported. Resolve supporting evidence and expiry risk to reduce ALARP uncertainty.";
       } else {
         readinessStatus = "Ready";
-        advisorySummary = "Syarikat layak proceed kepada tender pack generation, tertakluk kepada syarat tender-specific.";
+        advisorySummary = "Current company state is verified against available minimum compliance evidence.";
       }
 
       const nextActions = buildNextActions({
@@ -434,17 +436,19 @@ export async function POST() {
       totalSnapshots: inserted,
       summary,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown evaluation error";
+
     await supabase.from("sync_run_logs").insert({
       sync_name: "readiness-evaluation-sync-v3",
       status: "failed",
-      message: error?.message || "Unknown evaluation error",
+      message,
     });
 
     return NextResponse.json(
       {
         ok: false,
-        error: error?.message || "Unknown evaluation error",
+        error: message,
       },
       { status: 500 }
     );
