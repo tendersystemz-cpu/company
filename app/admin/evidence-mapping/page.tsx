@@ -13,9 +13,34 @@ type TrustClass =
   | "GENERATED_INFERRED_EVIDENCE"
   | "MANDATORY_GAP_PLACEHOLDER";
 
+type LinkValidity =
+  | "GOOGLE_DRIVE_FILE"
+  | "GOOGLE_SHEET_REFERENCE"
+  | "BLANK"
+  | "MALFORMED"
+  | "OTHER_URL";
+
+type ComplianceState =
+  | "ACTIVE"
+  | "EXPIRING_SOON"
+  | "EXPIRED"
+  | "NO_EXPIRY"
+  | "MALFORMED_EXPIRY";
+
+type PilotSuitability =
+  | "PILOT_READY_ACTIVE"
+  | "PILOT_READY_EXPIRED_CASE"
+  | "NOT_PILOT_SOURCE_SHEET"
+  | "NOT_PILOT_INVALID_LINK"
+  | "NOT_PILOT_UNUSABLE_EXPIRY"
+  | "NOT_PILOT_NON_REAL_EVIDENCE";
+
 type ClassifiedEvidence = {
   row: Row;
   trustClass: TrustClass;
+  linkValidity: LinkValidity;
+  complianceState: ComplianceState;
+  pilotSuitability: PilotSuitability;
   malformedDate: boolean;
 };
 
@@ -42,6 +67,10 @@ function txt(value: unknown) {
 
 function n(value: unknown) {
   return txt(value).toLowerCase();
+}
+
+function withSource(row: Row, sourceTable: string): Row {
+  return { ...row, _source_table: sourceTable };
 }
 
 function isValidCompany(row: Row) {
@@ -95,8 +124,37 @@ function evidenceLink(row: Row) {
     txt(row.google_drive_url) ||
     txt(row.drive_url) ||
     txt(row.drive_file_id) ||
-    txt(row.google_drive_file_id)
+    txt(row.google_drive_file_id) ||
+    txt(row.source_drive_file_id)
   );
+}
+
+function evidenceFileId(row: Row) {
+  const directId = txt(row.drive_file_id) || txt(row.google_drive_file_id) || txt(row.source_drive_file_id);
+  if (isDriveFileId(directId)) return directId;
+
+  const link = evidenceLink(row);
+  const fileMatch = link.match(/\/file\/d\/([A-Za-z0-9_-]{20,})/);
+  if (fileMatch?.[1]) return fileMatch[1];
+
+  const queryIdMatch = link.match(/[?&]id=([A-Za-z0-9_-]{20,})/);
+  if (queryIdMatch?.[1]) return queryIdMatch[1];
+
+  return "";
+}
+
+function evidenceUrl(row: Row) {
+  const directUrl =
+    txt(row.evidence_url) ||
+    txt(row.file_url) ||
+    txt(row.source_url) ||
+    txt(row.google_drive_url) ||
+    txt(row.drive_url);
+
+  if (/^https?:\/\//i.test(directUrl)) return directUrl;
+
+  const fileId = evidenceFileId(row);
+  return fileId ? `https://drive.google.com/file/d/${fileId}/view` : "";
 }
 
 function evidenceSourceText(row: Row) {
@@ -108,17 +166,36 @@ function evidenceSourceText(row: Row) {
     row.drive_url,
     row.drive_file_id,
     row.google_drive_file_id,
+    row.source_drive_file_id,
     row.remarks,
     row.source_ref,
     row.source_table,
+    row._source_table,
   ].join(" "));
 }
 
+function isDriveFileId(value: string) {
+  return /^[A-Za-z0-9_-]{20,}$/.test(value);
+}
+
+function linkValidity(row: Row): LinkValidity {
+  const link = evidenceLink(row);
+  const lower = n(link);
+
+  if (!lower) return "BLANK";
+  if (lower.includes("dummy") || lower.includes("placeholder") || lower.includes("sample")) return "MALFORMED";
+  if (lower.includes("docs.google.com/spreadsheets") || lower.includes("spreadsheet")) return "GOOGLE_SHEET_REFERENCE";
+  if (lower.includes("drive.google.com/file/d/") && evidenceFileId(row)) return "GOOGLE_DRIVE_FILE";
+  if (isDriveFileId(link)) return "GOOGLE_DRIVE_FILE";
+  if (lower.includes("drive.google.com") && evidenceFileId(row)) return "GOOGLE_DRIVE_FILE";
+  if (lower.includes("drive.google.com")) return "MALFORMED";
+  if (/^https?:\/\//i.test(link)) return "OTHER_URL";
+  return "MALFORMED";
+}
+
 function hasUsableGoogleDriveReference(row: Row) {
-  const link = n(evidenceLink(row));
-  if (!link) return false;
-  if (link.includes("dummy") || link.includes("placeholder") || link.includes("test") || link.includes("sample")) return false;
-  return true;
+  if (isDummyTestEvidence(row)) return false;
+  return linkValidity(row) === "GOOGLE_DRIVE_FILE";
 }
 
 function isDummyTestEvidence(row: Row) {
@@ -154,6 +231,35 @@ function expiryValue(row: Row) {
   );
 }
 
+function parseExpiryDate(row: Row) {
+  const value = expiryValue(row);
+  if (!value) return null;
+
+  const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    if (year < 1995 || year > 2100) return null;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+    return date;
+  }
+
+  const slash = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (slash) {
+    const day = Number(slash[1]);
+    const month = Number(slash[2]);
+    const year = Number(slash[3]);
+    if (year < 1995 || year > 2100) return null;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+    return date;
+  }
+
+  return null;
+}
+
 function hasExpiry(row: Row) {
   return !!expiryValue(row);
 }
@@ -161,26 +267,87 @@ function hasExpiry(row: Row) {
 function malformedExpiry(row: Row) {
   const value = expiryValue(row);
   if (!value) return false;
-  const date = new Date(value);
-  const year = Number(value.slice(0, 4));
-  return (
-    Number.isNaN(date.getTime()) ||
-    year < 1995 ||
-    year > 2100 ||
-    value.startsWith("0202") ||
-    value.startsWith("000")
-  );
+  return !parseExpiryDate(row);
+}
+
+function complianceState(row: Row): ComplianceState {
+  const value = expiryValue(row);
+  if (!value) return "NO_EXPIRY";
+
+  const expiry = parseExpiryDate(row);
+  if (!expiry) return "MALFORMED_EXPIRY";
+
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+
+  if (diffDays < 0) return "EXPIRED";
+  if (diffDays <= 90) return "EXPIRING_SOON";
+  return "ACTIVE";
+}
+
+function pilotSuitability(row: Row, evidenceTrustClass: TrustClass): PilotSuitability {
+  const validity = linkValidity(row);
+  const state = complianceState(row);
+
+  if (validity === "GOOGLE_SHEET_REFERENCE") return "NOT_PILOT_SOURCE_SHEET";
+  if (validity !== "GOOGLE_DRIVE_FILE") return "NOT_PILOT_INVALID_LINK";
+  if (evidenceTrustClass !== "REAL_LINKED_EVIDENCE") return "NOT_PILOT_NON_REAL_EVIDENCE";
+  if (state === "ACTIVE" || state === "EXPIRING_SOON") return "PILOT_READY_ACTIVE";
+  if (state === "EXPIRED") return "PILOT_READY_EXPIRED_CASE";
+  return "NOT_PILOT_UNUSABLE_EXPIRY";
+}
+
+function classifyEvidence(row: Row): ClassifiedEvidence {
+  const evidenceTrustClass = trustClass(row);
+  return {
+    row,
+    trustClass: evidenceTrustClass,
+    linkValidity: linkValidity(row),
+    complianceState: complianceState(row),
+    pilotSuitability: pilotSuitability(row, evidenceTrustClass),
+    malformedDate: malformedExpiry(row),
+  };
 }
 
 function evidenceTitle(row: Row) {
   return txt(row.document_title) || txt(row.category_code) || txt(row.document_type) || "Bukti tanpa tajuk";
 }
 
+function sourceLabel(row: Row) {
+  return txt(row._source_table) || txt(row.source_table) || txt(row.source_system) || "unknown source";
+}
+
 function statusTone(value: string) {
   const lower = n(value);
-  if (lower.includes("real linked") || lower.includes("sedia") || lower.includes("baik")) return "ok";
-  if (lower.includes("semakan") || lower.includes("sebahagian") || lower.includes("dummy") || lower.includes("generated")) return "warn";
-  if (lower.includes("tiada") || lower.includes("anomali") || lower.includes("kosong") || lower.includes("belum evidence-backed")) return "bad";
+  if (
+    lower.includes("real linked") ||
+    lower.includes("sedia") ||
+    lower.includes("baik") ||
+    lower.includes("google drive file") ||
+    lower.includes("active") ||
+    lower.includes("pilot ready active")
+  ) return "ok";
+  if (
+    lower.includes("semakan") ||
+    lower.includes("sebahagian") ||
+    lower.includes("dummy") ||
+    lower.includes("generated") ||
+    lower.includes("expiring soon") ||
+    lower.includes("expired case") ||
+    lower.includes("google sheet")
+  ) return "warn";
+  if (
+    lower.includes("tiada") ||
+    lower.includes("anomali") ||
+    lower.includes("kosong") ||
+    lower.includes("belum evidence-backed") ||
+    lower.includes("blank") ||
+    lower.includes("malformed") ||
+    lower.includes("invalid") ||
+    lower.includes("not pilot") ||
+    lower === "expired"
+  ) return "bad";
   return "neutral";
 }
 
@@ -190,6 +357,31 @@ function trustLabel(value: TrustClass) {
   if (value === "BLANK_LINK_EVIDENCE") return "Blank Link Evidence";
   if (value === "GENERATED_INFERRED_EVIDENCE") return "Generated / Inferred Evidence";
   return "Mandatory Gap Placeholder";
+}
+
+function linkValidityLabel(value: LinkValidity) {
+  if (value === "GOOGLE_DRIVE_FILE") return "Google Drive File";
+  if (value === "GOOGLE_SHEET_REFERENCE") return "Google Sheet Reference";
+  if (value === "OTHER_URL") return "Other URL";
+  if (value === "MALFORMED") return "Malformed";
+  return "Blank";
+}
+
+function complianceLabel(value: ComplianceState) {
+  if (value === "ACTIVE") return "Active";
+  if (value === "EXPIRING_SOON") return "Expiring Soon";
+  if (value === "EXPIRED") return "Expired";
+  if (value === "MALFORMED_EXPIRY") return "Malformed Expiry";
+  return "No Expiry";
+}
+
+function pilotLabel(value: PilotSuitability) {
+  if (value === "PILOT_READY_ACTIVE") return "Pilot Ready Active";
+  if (value === "PILOT_READY_EXPIRED_CASE") return "Pilot Ready Expired Case";
+  if (value === "NOT_PILOT_SOURCE_SHEET") return "Not Pilot - Source Sheet";
+  if (value === "NOT_PILOT_INVALID_LINK") return "Not Pilot - Invalid Link";
+  if (value === "NOT_PILOT_UNUSABLE_EXPIRY") return "Not Pilot - Unusable Expiry";
+  return "Not Pilot - Non Real Evidence";
 }
 
 function countClass(rows: ClassifiedEvidence[], value: TrustClass) {
@@ -244,33 +436,48 @@ export default function EvidenceMappingAdminPage() {
 
   const model = useMemo(() => {
     const validCompanies = companies.filter(isValidCompany);
-    const allEvidence = [...evidenceRegister, ...evidenceIndex];
+    const allEvidence = [
+      ...evidenceRegister.map((row) => withSource(row, "evidence_register")),
+      ...evidenceIndex.map((row) => withSource(row, "company_evidence_index")),
+    ];
     const validEvidence = allEvidence.filter((row) =>
       validCompanies.some((company) => sameCompany(row, company))
     );
-    const classifiedEvidence: ClassifiedEvidence[] = validEvidence.map((row) => ({
-      row,
-      trustClass: trustClass(row),
-      malformedDate: malformedExpiry(row),
-    }));
+    const classifiedEvidence: ClassifiedEvidence[] = validEvidence.map(classifyEvidence);
     const realLinkedEvidence = classifiedEvidence.filter((item) => item.trustClass === "REAL_LINKED_EVIDENCE");
+    const googleDriveEvidence = classifiedEvidence.filter((item) => item.linkValidity === "GOOGLE_DRIVE_FILE");
+    const sheetReferenceEvidence = classifiedEvidence.filter((item) => item.linkValidity === "GOOGLE_SHEET_REFERENCE");
+    const expiredEvidence = classifiedEvidence.filter((item) => item.complianceState === "EXPIRED");
+    const activePilotEvidence = classifiedEvidence.filter((item) => item.pilotSuitability === "PILOT_READY_ACTIVE");
+    const expiredPilotEvidence = classifiedEvidence.filter((item) => item.pilotSuitability === "PILOT_READY_EXPIRED_CASE");
+
+    const auditDetailRows = classifiedEvidence
+      .filter((item) =>
+        item.trustClass === "REAL_LINKED_EVIDENCE" ||
+        item.linkValidity === "GOOGLE_SHEET_REFERENCE" ||
+        item.pilotSuitability === "PILOT_READY_ACTIVE" ||
+        item.pilotSuitability === "PILOT_READY_EXPIRED_CASE"
+      )
+      .sort((a, b) =>
+        n([a.row.company_name, a.row.category_code, a.row.document_type].join(" ")).localeCompare(
+          n([b.row.company_name, b.row.category_code, b.row.document_type].join(" "))
+        )
+      );
 
     const companyRows = validCompanies.map((company) => {
       const rows = allEvidence.filter((row) => sameCompany(row, company));
-      const classifiedRows = rows.map((row) => ({
-        row,
-        trustClass: trustClass(row),
-        malformedDate: malformedExpiry(row),
-      }));
+      const classifiedRows = rows.map(classifyEvidence);
       const missing = criticalCategories
         .filter((category) => !rows.some((row) => matchesCategory(row, category)))
         .map((category) => category.label);
       const realLinkedCount = countClass(classifiedRows, "REAL_LINKED_EVIDENCE");
       const nonRealCount = rows.length - realLinkedCount;
       const expiryAnomalies = classifiedRows.filter((item) => item.malformedDate).length;
+      const sheetReferenceCount = classifiedRows.filter((item) => item.linkValidity === "GOOGLE_SHEET_REFERENCE").length;
+      const expiredCount = classifiedRows.filter((item) => item.complianceState === "EXPIRED").length;
       const mappingStatus = !rows.length
         ? "Tiada rekod evidence"
-        : missing.length || nonRealCount || expiryAnomalies
+        : missing.length || nonRealCount || expiryAnomalies || sheetReferenceCount || expiredCount
           ? "Perlu semakan"
           : "Sedia dipetakan";
       const linkQuality = !rows.length
@@ -289,6 +496,8 @@ export default function EvidenceMappingAdminPage() {
         missing,
         linkQuality,
         expiryAnomalies,
+        sheetReferenceCount,
+        expiredCount,
         mappingStatus,
       };
     });
@@ -329,6 +538,7 @@ export default function EvidenceMappingAdminPage() {
         dummyBlankGeneratedCount,
         mandatoryGapPlaceholders: countClass(classifiedRows, "MANDATORY_GAP_PLACEHOLDER"),
         expiryAnomalies: classifiedRows.filter((item) => item.malformedDate).length,
+        expiredRows: classifiedRows.filter((item) => item.complianceState === "EXPIRED").length,
         expiryDates: rows.filter(hasExpiry).length,
       };
     });
@@ -343,6 +553,12 @@ export default function EvidenceMappingAdminPage() {
       companiesWithRealLinkedEvidence,
       companiesNoEvidence,
       realLinkedEvidence,
+      googleDriveEvidence,
+      sheetReferenceEvidence,
+      expiredEvidence,
+      activePilotEvidence,
+      expiredPilotEvidence,
+      auditDetailRows,
       dummyTestEvidence,
       blankLinkEvidence,
       generatedInferredEvidence,
@@ -376,7 +592,7 @@ export default function EvidenceMappingAdminPage() {
       </section>
 
       <section className="card pad bad">
-        <strong>PERINGATAN TRUST:</strong> Rows generated from imports, dummy links, blank links, and mandatory-gap placeholders are not verified evidence and must not be treated as Company Overview truth.
+        <strong>PERINGATAN TRUST:</strong> Rows generated from imports, dummy links, blank links, mandatory-gap placeholders, and Google Sheet references are not Company Overview truth.
       </section>
 
       {errors.length > 0 && (
@@ -392,11 +608,64 @@ export default function EvidenceMappingAdminPage() {
         <Kpi label="Belum Evidence-Backed" value={loading ? "..." : model.validCompanies.length - model.companiesWithRealLinkedEvidence} tone="bad" />
         <Kpi label="Total Evidence Rows" value={loading ? "..." : model.validEvidence.length} />
         <Kpi label="Real Linked Evidence" value={loading ? "..." : model.realLinkedEvidence.length} tone="ok" />
+        <Kpi label="Google Drive File" value={loading ? "..." : model.googleDriveEvidence.length} tone="ok" />
+        <Kpi label="Google Sheet Ref" value={loading ? "..." : model.sheetReferenceEvidence.length} tone="warn" />
+        <Kpi label="Expired Evidence" value={loading ? "..." : model.expiredEvidence.length} tone="bad" />
+        <Kpi label="Pilot Active" value={loading ? "..." : model.activePilotEvidence.length} tone="ok" />
+        <Kpi label="Pilot Expired Case" value={loading ? "..." : model.expiredPilotEvidence.length} tone="warn" />
         <Kpi label="Dummy / Test Evidence" value={loading ? "..." : model.dummyTestEvidence.length} tone="warn" />
         <Kpi label="Blank Link Evidence" value={loading ? "..." : model.blankLinkEvidence.length} tone="bad" />
         <Kpi label="Generated / Inferred" value={loading ? "..." : model.generatedInferredEvidence.length} tone="warn" />
         <Kpi label="Mandatory Gap Placeholder" value={loading ? "..." : model.mandatoryGapPlaceholders.length} tone="bad" />
         <Kpi label="Malformed Expiry Rows" value={loading ? "..." : model.expiryAnomalies.length} tone="bad" />
+      </section>
+
+      <section className="card pad">
+        <div className="title">
+          <h2>Read-Only Evidence Audit Detail</h2>
+          <span>{model.auditDetailRows.length} calon/link evidence yang perlu diputuskan</span>
+        </div>
+        <div className="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Syarikat</th>
+                <th>Kategori / Dokumen</th>
+                <th>Source Table</th>
+                <th>Trust Class</th>
+                <th>Link Validity</th>
+                <th>Compliance State</th>
+                <th>Expiry</th>
+                <th>Pilot Suitability</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody>
+              {model.auditDetailRows.map((item, index) => {
+                const url = evidenceUrl(item.row);
+                return (
+                  <tr key={`${txt(item.row.id) || txt(item.row.company_name)}-${index}`}>
+                    <td>
+                      <strong>{txt(item.row.company_name) || "-"}</strong>
+                      <small>{txt(item.row.company_code) || txt(item.row.company_id) || "Tiada kod"}</small>
+                    </td>
+                    <td>
+                      <strong>{evidenceTitle(item.row)}</strong>
+                      <small>{txt(item.row.category_code) || txt(item.row.document_type) || "-"}</small>
+                    </td>
+                    <td>{sourceLabel(item.row)}</td>
+                    <td><Badge value={trustLabel(item.trustClass)} /></td>
+                    <td><Badge value={linkValidityLabel(item.linkValidity)} /></td>
+                    <td><Badge value={complianceLabel(item.complianceState)} /></td>
+                    <td>{expiryValue(item.row) || "-"}</td>
+                    <td><Badge value={pilotLabel(item.pilotSuitability)} /></td>
+                    <td>{url ? <a href={url} target="_blank" rel="noreferrer">Buka</a> : "-"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="card pad">
@@ -415,6 +684,7 @@ export default function EvidenceMappingAdminPage() {
                 <th>Dummy / Blank / Generated</th>
                 <th>Mandatory Gap</th>
                 <th>Expiry Anomaly</th>
+                <th>Expired</th>
                 <th>Status Mapping</th>
               </tr>
             </thead>
@@ -428,6 +698,7 @@ export default function EvidenceMappingAdminPage() {
                   <td>{row.dummyBlankGeneratedCount}</td>
                   <td>{row.mandatoryGapPlaceholders}</td>
                   <td>{row.expiryAnomalies}</td>
+                  <td>{row.expiredRows}</td>
                   <td><Badge value={row.realLinkedCompanies ? "Ada real linked" : row.coveredCompanies ? "Belum Evidence-Backed" : "Kosong"} /></td>
                 </tr>
               ))}
@@ -451,6 +722,8 @@ export default function EvidenceMappingAdminPage() {
                 <th>Real Linked</th>
                 <th>Kategori Kritikal Hilang</th>
                 <th>Kualiti Pautan</th>
+                <th>Sheet Ref</th>
+                <th>Expired</th>
                 <th>Anomali Tarikh</th>
                 <th>Status Mapping</th>
               </tr>
@@ -466,6 +739,8 @@ export default function EvidenceMappingAdminPage() {
                   <td>{row.realLinkedCount}</td>
                   <td>{row.missing.slice(0, 6).join(", ") || "Lengkap untuk senarai kritikal"}{row.missing.length > 6 ? ` +${row.missing.length - 6}` : ""}</td>
                   <td><Badge value={row.linkQuality} /></td>
+                  <td>{row.sheetReferenceCount}</td>
+                  <td>{row.expiredCount}</td>
                   <td>{row.expiryAnomalies}</td>
                   <td><Badge value={row.mappingStatus} /></td>
                 </tr>
@@ -476,6 +751,30 @@ export default function EvidenceMappingAdminPage() {
       </section>
 
       <section className="grid issues">
+        <IssueList
+          title="Pilot Active Candidates"
+          rows={model.activePilotEvidence.slice(0, 30).map((item) => ({
+            title: `${txt(item.row.company_name) || "Tiada syarikat"} - ${evidenceTitle(item.row)}`,
+            meta: `${sourceLabel(item.row)} / ${expiryValue(item.row) || "No expiry"}`,
+          }))}
+          empty="Tiada evidence aktif yang sesuai sebagai pilot."
+        />
+        <IssueList
+          title="Pilot Expired Cases"
+          rows={model.expiredPilotEvidence.slice(0, 30).map((item) => ({
+            title: `${txt(item.row.company_name) || "Tiada syarikat"} - ${evidenceTitle(item.row)}`,
+            meta: `${sourceLabel(item.row)} / expired ${expiryValue(item.row) || "-"}`,
+          }))}
+          empty="Tiada expired evidence yang sesuai sebagai pilot case."
+        />
+        <IssueList
+          title="Google Sheet References"
+          rows={model.sheetReferenceEvidence.slice(0, 30).map((item) => ({
+            title: `${txt(item.row.company_name) || "Tiada syarikat"} - ${evidenceTitle(item.row)}`,
+            meta: evidenceLink(item.row) || "Sheet reference",
+          }))}
+          empty="Tiada Google Sheet reference dikesan."
+        />
         <IssueList
           title="Syarikat Sah Tanpa Bukti"
           rows={model.companiesNoEvidence.slice(0, 30).map((row) => ({
