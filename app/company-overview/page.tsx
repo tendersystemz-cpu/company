@@ -7,6 +7,12 @@ import { supabase } from "@/lib/supabaseClient";
 type Row = Record<string, unknown>;
 type SafeResult = { rows: Row[]; error: string };
 type Risk = "Rendah" | "Sederhana" | "Tinggi" | "Kritikal";
+type DateCheck = {
+  raw: string;
+  date: Date | null;
+  valid: boolean;
+  anomaly: boolean;
+};
 type ActionItem = { severity: Risk; item: string; reason: string; evidence: Row | null };
 type CompanyIntelligence = {
   company: Row;
@@ -23,7 +29,9 @@ type CompanyIntelligence = {
   ppk: Row | null;
   spkk: Row | null;
   stb: Row | null;
+  score: Row | null;
   mofEvidence: Row | null;
+  mofStb: Row | null;
   tcc: Row | null;
   audit: Row[];
   bank: Row[];
@@ -34,6 +42,7 @@ type CompanyIntelligence = {
   expired: Row[];
   pending: Row[];
   mismatch: Row[];
+  dataAnomalies: Row[];
   missingCategories: { label: string; evidence: Row | null }[];
   healthScore: number;
   healthRisk: Risk;
@@ -52,6 +61,7 @@ const statusLabels: Record<string, string> = {
   Verified: "Disahkan",
   Expired: "Tamat Tempoh",
   Mismatch: "Maklumat Tidak Sama",
+  "Data Anomali": "Data Anomali",
   Action: "Perlu Tindakan",
 };
 
@@ -64,6 +74,7 @@ const statusOrder = [
   "Verified",
   "Expired",
   "Mismatch",
+  "Data Anomali",
 ];
 
 function txt(value: unknown) {
@@ -88,26 +99,60 @@ function num(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function formatDate(value: unknown) {
+function safeDateCheck(value: unknown): DateCheck {
   const raw = txt(value);
-  if (!raw) return "-";
+  if (!raw) return { raw, date: null, valid: false, anomaly: false };
+
+  const startsBad = raw.startsWith("0202") || raw.startsWith("000");
+  const isoYear = raw.match(/^(\d{1,4})(?=-)/);
+  const digitGroups = raw.match(/\d+/g) || [];
+  const hasFourDigitYear = digitGroups.some((group) => group.length === 4);
+  const hasShortLikelyYear = digitGroups.some((group) => group.length > 1 && group.length < 4 && Number(group) > 31);
+  const fewerThanFourDigits = isoYear ? isoYear[1].length < 4 : !hasFourDigitYear && hasShortLikelyYear;
   const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return raw;
+  const parsedInvalid = Number.isNaN(date.getTime());
+  const year = parsedInvalid ? 0 : date.getFullYear();
+  const impossibleYear = !parsedInvalid && (year < 1995 || year > 2100);
+  const anomaly = startsBad || fewerThanFourDigits || parsedInvalid || impossibleYear;
+
+  return { raw, date: anomaly ? null : date, valid: !anomaly, anomaly };
+}
+
+function rowHasMalformedDate(row: Row | null | undefined) {
+  if (!row) return false;
+  return [
+    row.expiry_date,
+    row.valid_until,
+    row.effective_to,
+    row.ppk_expiry_date,
+    row.spkk_expiry_date,
+    row.stb_expiry_date,
+  ].some((value) => safeDateCheck(value).anomaly);
+}
+
+function formatDate(value: unknown) {
+  const checked = safeDateCheck(value);
+  if (!checked.raw) return "-";
+  if (!checked.valid || !checked.date) return "Tarikh Tidak Sah";
+  const date = checked.date;
   return date.toLocaleDateString("en-GB");
 }
 
 function daysToExpiry(value: unknown) {
-  const raw = txt(value);
-  if (!raw) return null;
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return null;
+  const checked = safeDateCheck(value);
+  if (!checked.valid || !checked.date) return null;
+  const date = new Date(checked.date);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   date.setHours(0, 0, 0, 0);
-  return Math.ceil((date.getTime() - today.getTime()) / 86400000);
+  const days = Math.ceil((date.getTime() - today.getTime()) / 86400000);
+  if (!Number.isFinite(days) || Math.abs(days) > 36500) return null;
+  return days;
 }
 
 function remainingLabel(value: unknown) {
+  const checked = safeDateCheck(value);
+  if (checked.anomaly) return "Perlu Semakan";
   const days = daysToExpiry(value);
   if (days === null) return "Belum Lengkap";
   if (days < 0) return `Tamat ${Math.abs(days)} hari`;
@@ -142,6 +187,7 @@ function statusFromRow(row: Row | null | undefined) {
   const verification = n(row.verification_status || row.extraction_status);
   const expiryDays = daysToExpiry(row.expiry_date || row.valid_until || row.effective_to);
 
+  if (rowHasMalformedDate(row)) return "Data Anomali";
   if (status.includes("mismatch") || verification.includes("mismatch")) return "Mismatch";
   if (status.includes("expired") || (expiryDays !== null && expiryDays < 0)) return "Expired";
   if (verification.includes("verified") || status === "ready" || status === "verified") return "Verified";
@@ -156,11 +202,12 @@ function statusClass(status: string) {
   const s = n(status);
   if (s === "verified" || s === "matched" || s === "extracted" || s === "rendah") return "ok";
   if (s === "pending verification" || s === "imported" || s === "sederhana") return "warn";
-  if (s === "expired" || s === "mismatch" || s === "not imported" || s === "tinggi" || s === "kritikal") return "bad";
+  if (s === "expired" || s === "mismatch" || s === "data anomali" || s === "not imported" || s === "tinggi" || s === "kritikal") return "bad";
   return "neutral";
 }
 
 function riskFromStatus(status: string): Risk {
+  if (status === "Data Anomali") return "Tinggi";
   if (status === "Expired" || status === "Mismatch" || status === "Not Imported") return "Kritikal";
   if (status === "Pending Verification") return "Tinggi";
   if (status === "Imported" || status === "Extracted" || status === "Matched") return "Sederhana";
@@ -227,7 +274,7 @@ function companyClassification(company: Row) {
 async function safeRead(table: string, select = "*", limit = 5000): Promise<SafeResult> {
   const { data, error } = await supabase.from(table).select(select).limit(limit);
   if (error) return { rows: [], error: `${table}: ${error.message}` };
-  return { rows: data || [], error: "" };
+  return { rows: (data || []) as unknown as Row[], error: "" };
 }
 
 export default function CompanyOverviewPage() {
@@ -372,7 +419,9 @@ export default function CompanyOverviewPage() {
     const ppk = findEvidence(evidence, ["cidb_ppk", "ppk"]);
     const spkk = findEvidence(evidence, ["cidb_spkk", "spkk"]);
     const stb = findEvidence(evidence, ["cidb_stb", "stb"]);
+    const score = findEvidence(evidence, ["cidb_score", "score"]);
     const mofEvidence = findEvidence(evidence, ["mof", "eperolehan"]);
+    const mofStb = findEvidence(evidence, ["mof stb", "taraf bumiputera mof", "stb mof"]);
     const tcc = findEvidence(evidence, ["tcc", "tax", "lhdn"]);
     const audit = filterEvidence(evidence, ["audit", "audited", "financial"]);
     const bank = filterEvidence(evidence, ["bank"]);
@@ -388,16 +437,18 @@ export default function CompanyOverviewPage() {
     const expired = evidence.filter((row) => statusFromRow(row) === "Expired");
     const pending = evidence.filter((row) => statusFromRow(row) === "Pending Verification");
     const mismatch = evidence.filter((row) => statusFromRow(row) === "Mismatch");
+    const dataAnomalies = evidence.filter((row) => statusFromRow(row) === "Data Anomali");
     const missingCategories = Array.isArray(selected.snapshot?.missing_categories) ? selected.snapshot?.missing_categories : [];
     const scoreBase = num(selected.snapshot?.readiness_score);
-    const healthScore = scoreBase || Math.max(0, Math.min(100, 100 - expired.length * 12 - pending.length * 5 - missingCategories.length * 4));
-    const healthRisk: Risk = expired.length || mismatch.length ? "Kritikal" : healthScore >= 80 ? "Rendah" : healthScore >= 60 ? "Sederhana" : healthScore >= 40 ? "Tinggi" : "Kritikal";
+    const healthScore = scoreBase || Math.max(0, Math.min(100, 100 - expired.length * 12 - dataAnomalies.length * 8 - pending.length * 5 - missingCategories.length * 4));
+    const healthRisk: Risk = expired.length || mismatch.length ? "Kritikal" : dataAnomalies.length ? "Tinggi" : healthScore >= 80 ? "Rendah" : healthScore >= 60 ? "Sederhana" : healthScore >= 40 ? "Tinggi" : "Kritikal";
 
-    const actionRows = [
-      ...expired.map((row) => ({ severity: "Kritikal", item: evidenceTitle(row), reason: "Tamat tempoh", evidence: row })),
-      ...mismatch.map((row) => ({ severity: "Tinggi", item: evidenceTitle(row), reason: "Maklumat tidak sama", evidence: row })),
-      ...pending.slice(0, 8).map((row) => ({ severity: "Sederhana", item: evidenceTitle(row), reason: "Menunggu semakan", evidence: row })),
-      ...missingCategories.slice(0, 8).map((item) => ({ severity: "Tinggi", item: txt(item), reason: "Belum lengkap", evidence: null as Row | null })),
+    const actionRows: ActionItem[] = [
+      ...expired.map((row) => ({ severity: "Kritikal" as Risk, item: evidenceTitle(row), reason: "Tamat tempoh", evidence: row })),
+      ...dataAnomalies.map((row) => ({ severity: "Tinggi" as Risk, item: evidenceTitle(row), reason: "Data Anomali - tarikh perlu disahkan semula", evidence: row })),
+      ...mismatch.map((row) => ({ severity: "Tinggi" as Risk, item: evidenceTitle(row), reason: "Maklumat tidak sama", evidence: row })),
+      ...pending.slice(0, 8).map((row) => ({ severity: "Sederhana" as Risk, item: evidenceTitle(row), reason: "Menunggu semakan", evidence: row })),
+      ...missingCategories.slice(0, 8).map((item) => ({ severity: "Tinggi" as Risk, item: txt(item), reason: "Belum lengkap", evidence: null as Row | null })),
     ].slice(0, 12);
 
     const categorizedPdfs = relatedPdfs.filter((row) => txt(row.document_category)).length;
@@ -407,7 +458,9 @@ export default function CompanyOverviewPage() {
       { label: "CIDB / PPK", value: first(cidb, ["ppk_expiry_date"]) || first(company, ["ppk_expiry"]) || first(ppk || {}, ["expiry_date", "effective_to"]) },
       { label: "SPKK", value: first(cidb, ["spkk_expiry_date"]) || first(company, ["spkk_expiry"]) || first(spkk || {}, ["expiry_date", "effective_to"]) },
       { label: "STB", value: first(cidb, ["stb_expiry_date"]) || first(company, ["stb_expiry"]) || first(stb || {}, ["expiry_date", "effective_to"]) },
+      { label: "SCORE", value: first(cidb, ["score_expiry_date", "score_expiry"]) || first(score || {}, ["expiry_date", "effective_to"]) },
       { label: "MOF", value: first(mofEvidence || {}, ["expiry_date", "effective_to"]) },
+      { label: "MOF STB", value: first(mofStb || {}, ["expiry_date", "effective_to"]) },
       { label: "TCC", value: first(tcc || {}, ["expiry_date", "effective_to"]) },
       { label: "Audit terkini", value: first(audit[0] || {}, ["document_date", "issue_date", "created_at"]) },
       { label: "Bank terkini", value: first(bank[0] || {}, ["document_date", "issue_date", "created_at"]) },
@@ -416,6 +469,8 @@ export default function CompanyOverviewPage() {
 
     return {
       company,
+      snapshot: selected.snapshot,
+      status: selected.status,
       evidence,
       relatedPdfs,
       cidb,
@@ -427,7 +482,9 @@ export default function CompanyOverviewPage() {
       ppk,
       spkk,
       stb,
+      score,
       mofEvidence,
+      mofStb,
       tcc,
       audit,
       bank,
@@ -438,6 +495,7 @@ export default function CompanyOverviewPage() {
       expired,
       pending,
       mismatch,
+      dataAnomalies,
       missingCategories,
       healthScore,
       healthRisk,
@@ -742,6 +800,7 @@ function CurrentStateCard({ data }: { data: CompanyIntelligence }) {
         <Metric label="Bahagian Disahkan" value={`${verifiedSections}/10`} cls={verifiedSections >= 7 ? "ok" : "warn"} />
         <Metric label="Menunggu Semakan" value={data.pending.length} cls="warn" />
         <Metric label="Tamat Tempoh" value={data.expired.length} cls={data.expired.length ? "bad" : "ok"} />
+        <Metric label="Data Anomali" value={data.dataAnomalies.length} cls={data.dataAnomalies.length ? "bad" : "ok"} />
       </div>
       <p className="muted">Keyakinan bukti: {data.verifiedEvidence > 10 ? "Tinggi" : data.verifiedEvidence > 3 ? "Sederhana" : "Rendah"}</p>
     </section>
@@ -768,6 +827,7 @@ function KeyDatesPanel({ dates }: { dates: { label: string; value: string }[] })
         <h2>Key Dates</h2>
         <SourceIndicator label="Sijil dan dokumen terkini" />
       </div>
+      <div className="section-note">Tarikh tidak sah dikesan daripada data import lama dan perlu disahkan semula dengan dokumen rasmi.</div>
       <div className="tablewrap">
         <table>
           <tbody>
@@ -840,7 +900,9 @@ function ComplianceCoreCard({ data }: { data: CompanyIntelligence }) {
     { label: "CIDB / PPK", row: data.ppk || data.cidb, no: first(data.cidb, ["ppk_serial", "cidb_no"]) },
     { label: "SPKK", row: data.spkk || data.cidb, no: first(data.cidb, ["spkk_serial"]) },
     { label: "STB", row: data.stb || data.cidb, no: first(data.cidb, ["stb_serial"]) },
+    { label: "SCORE", row: data.score, no: first(data.cidb, ["score_serial", "score_no"]) },
     { label: "MOF", row: data.mofEvidence || data.mof[0], no: first(data.mof[0], ["mof_code"]) },
+    { label: "MOF STB", row: data.mofStb, no: first(data.mofStb || {}, ["document_no", "certificate_no"]) },
     { label: "TCC", row: data.tcc, no: first(data.tcc || {}, ["document_no"]) },
   ];
 
@@ -979,6 +1041,7 @@ function DocumentStatsCard({ data }: { data: CompanyIntelligence }) {
         <Metric label="Disahkan" value={data.verifiedEvidence} cls="ok" />
         <Metric label="Menunggu Semakan" value={data.pending.length} cls="warn" />
         <Metric label="Tamat Tempoh" value={data.expired.length} cls="bad" />
+        <Metric label="Data Anomali" value={data.dataAnomalies.length} cls={data.dataAnomalies.length ? "bad" : "ok"} />
         <Metric label="Tidak Sama" value={data.mismatch.length} cls="bad" />
       </div>
     </section>
@@ -988,7 +1051,11 @@ function DocumentStatsCard({ data }: { data: CompanyIntelligence }) {
 function EvidenceSummaryCard({ data }: { data: CompanyIntelligence }) {
   const groups = [
     { label: "Dokumen Status Semasa", rows: filterEvidence(data.evidence, ["ssm", "cidb", "mof", "tcc"]) },
-    { label: "Dokumen Tamat Tempoh", rows: data.evidence.filter((row) => daysToExpiry(row.expiry_date || row.effective_to) !== null) },
+    { label: "Dokumen Tamat Tempoh", rows: data.evidence.filter((row) => {
+      const days = daysToExpiry(row.expiry_date || row.effective_to);
+      return days !== null && days < 0;
+    }) },
+    { label: "Data Anomali", rows: data.dataAnomalies },
     { label: "Dokumen Liputan Sejarah", rows: data.audit },
     { label: "Dokumen Liputan Bulanan", rows: [...data.bank, ...data.employment] },
     { label: "Dokumen Hubungan", rows: data.relationship },
