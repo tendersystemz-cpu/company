@@ -22,6 +22,17 @@ const unifiedStatuses = [
   "Mismatch",
 ];
 
+const statusLabels: Record<string, string> = {
+  "Not Imported": "Belum Lengkap",
+  Imported: "Data Awal",
+  Matched: "Folder Dijumpai",
+  Extracted: "Dokumen Dibaca",
+  "Pending Verification": "Menunggu Semakan",
+  Verified: "Disahkan",
+  Expired: "Tamat Tempoh",
+  Mismatch: "Maklumat Tidak Sama",
+};
+
 function txt(v: unknown) {
   return String(v ?? "").trim();
 }
@@ -189,16 +200,16 @@ export default function CompanyActionProfilePage() {
 
   function exportCsv() {
     const header = [
-      "Company Code",
-      "Company Name",
-      "Unified Status",
-      "Score",
-      "Mandatory Available",
-      "Mandatory Missing",
-      "Expired",
-      "Expiring",
-      "Missing Categories",
-      "Action Summary",
+      "Kod Syarikat",
+      "Nama Syarikat",
+      "Status Semasa",
+      "Skor",
+      "Disahkan / Ada",
+      "Belum Lengkap",
+      "Tamat Tempoh",
+      "Akan Tamat",
+      "Kategori Belum Lengkap",
+      "Ringkasan Tindakan",
     ];
 
     const body = filtered.map((row) => [
@@ -219,7 +230,7 @@ export default function CompanyActionProfilePage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "company-action-profile.csv";
+    a.download = "tindakan-syarikat.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -228,81 +239,81 @@ export default function CompanyActionProfilePage() {
     <div className="page">
       <div className="head">
         <div>
-          <div className="kicker">Minimum Compliance ALARP</div>
-          <h1>Company Action Profile</h1>
-          <p>What the company currently has, what is missing, what needs action, and what is verified.</p>
+          <div className="kicker">Pematuhan Minimum ALARP</div>
+          <h1>Profil Tindakan Syarikat</h1>
+          <p>Lihat apa yang syarikat ada, apa yang belum lengkap, apa yang perlu tindakan, dan apa yang sudah disahkan.</p>
         </div>
 
         <div className="btns">
-          <Link href="/company-overview">Company Overview</Link>
+          <Link href="/company-overview">Pilih Syarikat</Link>
           <button onClick={runEvaluation} disabled={evaluating}>
-            {evaluating ? "Evaluating..." : "Refresh Evaluation"}
+            {evaluating ? "Menyemak..." : "Muat Semula Semakan"}
           </button>
-          <button onClick={exportCsv} disabled={!filtered.length}>Export CSV</button>
+          <button onClick={exportCsv} disabled={!filtered.length}>Muat Turun CSV</button>
         </div>
       </div>
 
       {error && (
         <div className="card error">
-          <strong>Safe empty state:</strong> {error}
+          <strong>Maklumat belum boleh dibaca:</strong> Semak sambungan data jika senarai tidak muncul.
         </div>
       )}
 
       <div className="grid kpis">
-        <Kpi label="Companies" value={kpi.total} note="latest action profiles" />
-        <Kpi label="Verified" value={kpi.verified} note="current state accepted" cls="ok" />
-        <Kpi label="Pending Verification" value={kpi.pending} note="review required" cls="warn" />
-        <Kpi label="Expired" value={kpi.expired} note="renewal/action required" cls="bad" />
-        <Kpi label="Mismatch" value={kpi.mismatch} note="source conflict or missing mandatory" cls="bad" />
+        <Kpi label="Syarikat" value={kpi.total} note="profil tindakan terkini" />
+        <Kpi label="Disahkan" value={kpi.verified} note="status semasa diterima" cls="ok" />
+        <Kpi label="Menunggu Semakan" value={kpi.pending} note="perlu semakan" cls="warn" />
+        <Kpi label="Tamat Tempoh" value={kpi.expired} note="perlu pembaharuan" cls="bad" />
+        <Kpi label="Maklumat Tidak Sama" value={kpi.mismatch} note="perlu semakan dokumen" cls="bad" />
       </div>
 
       <div className="toolbar card">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search company / code / missing category..."
+          placeholder="Cari syarikat / kod / dokumen belum lengkap..."
         />
 
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All unified status</option>
+          <option value="">Semua status</option>
           {unifiedStatuses.map((item) => (
-            <option value={item} key={item}>{item}</option>
+            <option value={item} key={item}>{statusLabels[item] || item}</option>
           ))}
         </select>
 
-        <button onClick={loadRows}>Refresh</button>
+        <button onClick={loadRows}>Muat Semula</button>
       </div>
 
       {loading ? (
-        <div className="card pad">Loading company action profiles...</div>
+        <div className="card pad">Memuat profil tindakan syarikat...</div>
       ) : !rows.length ? (
         <div className="card pad">
-          <h2>No action profile snapshot yet</h2>
-          <p>Run evidence sync and evaluation after importing company records and mapping source documents.</p>
+          <h2>Tiada profil tindakan lagi</h2>
+          <p>Masukkan data awal, semak folder dokumen, kemudian sahkan maklumat syarikat.</p>
           <div className="btns left">
-            <Link href="/company-master-import">Import Centre</Link>
-            <Link href="/drive-vault-import">Drive Mapping</Link>
-            <Link href="/evidence-verification">Verification</Link>
+            <Link href="/company-master-import">Masuk Data Awal</Link>
+            <Link href="/drive-vault-import">Semak Folder Drive</Link>
+            <Link href="/evidence-verification">Sahkan Maklumat</Link>
           </div>
         </div>
       ) : (
         <div className="split">
           <div className="card pad">
             <div className="title">
-              <h2>Company Action List</h2>
-              <span>{filtered.length} result</span>
+              <h2>Senarai Tindakan Syarikat</h2>
+              <span>{filtered.length} hasil</span>
             </div>
 
             <div className="tablewrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Company</th>
-                    <th>Unified Status</th>
-                    <th>Score</th>
-                    <th>Available</th>
-                    <th>Missing</th>
-                    <th>Expired</th>
+                    <th>Syarikat</th>
+                    <th>Status Semasa</th>
+                    <th>Skor</th>
+                    <th>Ada</th>
+                    <th>Belum Lengkap</th>
+                    <th>Tamat Tempoh</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -314,7 +325,7 @@ export default function CompanyActionProfilePage() {
                     >
                       <td>
                         <b>{row.company_name}</b>
-                        <small>{row.company_code || "No TR code"}</small>
+                        <small>{row.company_code || "Tiada kod"}</small>
                       </td>
                       <td><Badge value={profileStatus(row)} /></td>
                       <td>{percent(row.readiness_score)}</td>
@@ -338,39 +349,39 @@ export default function CompanyActionProfilePage() {
                   </div>
 
                   <div className="fields">
-                    <Field label="Company Code" value={selected.company_code || "Not generated"} />
-                    <Field label="Profile Score" value={percent(selected.readiness_score)} />
-                    <Field label="Verified / Available" value={`${selected.mandatory_available}/${selected.mandatory_total}`} />
-                    <Field label="Missing" value={selected.mandatory_missing} />
-                    <Field label="Supporting Missing" value={selected.supporting_missing} />
-                    <Field label="Expired" value={selected.expired_count} />
-                    <Field label="Expiring <=90 Days" value={selected.expiring_count} />
-                    <Field label="Current Status" value={profileStatus(selected)} />
+                    <Field label="Kod Syarikat" value={selected.company_code || "Belum dijana"} />
+                    <Field label="Skor Semakan" value={percent(selected.readiness_score)} />
+                    <Field label="Disahkan / Ada" value={`${selected.mandatory_available}/${selected.mandatory_total}`} />
+                    <Field label="Belum Lengkap" value={selected.mandatory_missing} />
+                    <Field label="Sokongan Belum Lengkap" value={selected.supporting_missing} />
+                    <Field label="Tamat Tempoh" value={selected.expired_count} />
+                    <Field label="Akan Tamat <=90 Hari" value={selected.expiring_count} />
+                    <Field label="Status Semasa" value={statusLabels[profileStatus(selected)] || profileStatus(selected)} />
                   </div>
 
                   <div className={`advisory ${statusClass(profileStatus(selected))}`}>
-                    <strong>Action Summary</strong>
-                    <span>{selected.advisory_summary || "No action summary generated yet."}</span>
+                    <strong>Ringkasan Tindakan</strong>
+                    <span>{selected.advisory_summary || "Tiada ringkasan tindakan lagi."}</span>
                   </div>
                 </div>
 
                 <div className="grid two">
-                  <CategoryCard title="What Is Missing" items={arr(selected.missing_categories)} cls="bad" />
-                  <CategoryCard title="What Is Expired" items={arr(selected.expired_categories)} cls="bad" />
-                  <CategoryCard title="What Is Expiring" items={arr(selected.expiring_categories)} cls="warn" />
-                  <CategoryCard title="Current Verified Status" items={[profileStatus(selected)]} cls={statusClass(profileStatus(selected))} />
+                  <CategoryCard title="Belum Lengkap" items={arr(selected.missing_categories)} cls="bad" />
+                  <CategoryCard title="Tamat Tempoh" items={arr(selected.expired_categories)} cls="bad" />
+                  <CategoryCard title="Akan Tamat" items={arr(selected.expiring_categories)} cls="warn" />
+                  <CategoryCard title="Status Semasa" items={[statusLabels[profileStatus(selected)] || profileStatus(selected)]} cls={statusClass(profileStatus(selected))} />
                 </div>
 
                 <div className="card pad">
                   <div className="title">
-                    <h2>Required Actions</h2>
-                    <span>{actions(selected.next_actions).length} action</span>
+                    <h2>Tindakan Diperlukan</h2>
+                    <span>{actions(selected.next_actions).length} tindakan</span>
                   </div>
 
                   <div className="actions">
                     {actions(selected.next_actions).map((action, index) => (
                       <div className={`action ${txt(action.severity) === "critical" ? "bad" : txt(action.severity) === "high" ? "warn" : "neutral"}`} key={index}>
-                        <strong>{txt(action.title || action.category_code) || "Action"}</strong>
+                        <strong>{txt(action.title || action.category_code) || "Tindakan"}</strong>
                         <span>{txt(action.action) || "-"}</span>
                         <small>{txt(action.type) || "-"} | {txt(action.category_code) || "-"}</small>
                       </div>
@@ -378,8 +389,8 @@ export default function CompanyActionProfilePage() {
 
                     {!actions(selected.next_actions).length && (
                       <div className="action ok">
-                        <strong>No action generated</strong>
-                        <span>No missing, expired, or mismatch action is recorded in the current snapshot.</span>
+                        <strong>Tiada tindakan direkodkan</strong>
+                        <span>Tiada rekod belum lengkap, tamat tempoh, atau maklumat tidak sama dalam semakan semasa.</span>
                       </div>
                     )}
                   </div>
@@ -463,7 +474,7 @@ function Kpi({ label, value, note, cls = "" }: { label: string; value: unknown; 
 }
 
 function Badge({ value }: { value: string }) {
-  return <span className={`badge ${statusClass(value)}`}>{value || "-"}</span>;
+  return <span className={`badge ${statusClass(value)}`}>{statusLabels[value] || value || "-"}</span>;
 }
 
 function Field({ label, value }: { label: string; value: unknown }) {
@@ -480,7 +491,7 @@ function CategoryCard({ title, items, cls }: { title: string; items: string[]; c
     <div className={`catbox ${cls}`}>
       <h3>{title}</h3>
       <div className="chips">
-        {items.length ? items.map((item) => <span className="chip" key={item}>{item}</span>) : <span className="chip">None</span>}
+        {items.length ? items.map((item) => <span className="chip" key={item}>{item}</span>) : <span className="chip">Tiada</span>}
       </div>
     </div>
   );

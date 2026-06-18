@@ -32,6 +32,17 @@ const unifiedStatuses = [
   "Mismatch",
 ];
 
+const statusLabels: Record<string, string> = {
+  "Not Imported": "Belum Lengkap",
+  Imported: "Data Awal",
+  Matched: "Folder Dijumpai",
+  Extracted: "Dokumen Dibaca",
+  "Pending Verification": "Menunggu Semakan",
+  Verified: "Disahkan",
+  Expired: "Tamat Tempoh",
+  Mismatch: "Maklumat Tidak Sama",
+};
+
 function txt(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -170,53 +181,53 @@ export default function HomePage() {
     <main className="page">
       <div className="head">
         <div>
-          <div className="kicker">Stage 1 ALARP</div>
-          <h1>Current Verified Company State</h1>
-          <p>Dashboard for imported, matched, extracted, verified, expired, and mismatch company compliance state.</p>
+          <div className="kicker">Fasa 1 ALARP</div>
+          <h1>Status Syarikat Semasa</h1>
+          <p>Ringkasan syarikat, dokumen, semakan, tamat tempoh, dan maklumat yang perlu tindakan.</p>
         </div>
         <div className="btns">
-          <button onClick={loadDashboard}>Refresh</button>
-          <Link href="/company-overview">Company Overview</Link>
-          <Link href="/readiness">Action Profile</Link>
+          <button onClick={loadDashboard}>Muat Semula</button>
+          <Link href="/company-overview">Pilih Syarikat</Link>
+          <Link href="/readiness">Lihat Tindakan</Link>
         </div>
       </div>
 
       {state.errors.length > 0 && (
         <div className="card pad warn">
-          <strong>Some source tables are unavailable.</strong>
-          <span>Dashboard is showing safe empty-state values for failed reads.</span>
-          <small>{state.errors.join(" | ")}</small>
+          <strong>Sebahagian maklumat belum boleh dibaca.</strong>
+          <span>Paparan ini masih boleh dibuka. Nilai kosong ditunjukkan untuk bahagian yang belum tersedia.</span>
+          <small>Semak tetapan sambungan data jika angka tidak muncul.</small>
         </div>
       )}
 
       <div className="grid kpis">
-        <Kpi label="Companies" value={loading ? "..." : dashboard.totalCompanies} note="company master" />
-        <Kpi label="Verified" value={loading ? "..." : dashboard.verifiedCompanies} note="current state accepted" cls="ok" />
-        <Kpi label="Pending Verification" value={loading ? "..." : dashboard.pendingCompanies} note="admin action needed" cls="warn" />
-        <Kpi label="Expired" value={loading ? "..." : dashboard.expiredCompanies} note="compliance risk" cls="bad" />
-        <Kpi label="Mismatch" value={loading ? "..." : dashboard.mismatchCompanies} note="source conflict" cls="bad" />
+        <Kpi label="Syarikat" value={loading ? "..." : dashboard.totalCompanies} note="rekod syarikat" />
+        <Kpi label="Disahkan" value={loading ? "..." : dashboard.verifiedCompanies} note="status semasa diterima" cls="ok" />
+        <Kpi label="Menunggu Semakan" value={loading ? "..." : dashboard.pendingCompanies} note="perlu semakan admin" cls="warn" />
+        <Kpi label="Tamat Tempoh" value={loading ? "..." : dashboard.expiredCompanies} note="perlu pembaharuan" cls="bad" />
+        <Kpi label="Maklumat Tidak Sama" value={loading ? "..." : dashboard.mismatchCompanies} note="perlu semakan dokumen" cls="bad" />
       </div>
 
       <div className="grid three">
         <section className="card pad">
           <div className="title">
-            <h2>Compliance Core</h2>
+            <h2>Teras Pematuhan</h2>
             <span>CIDB + MOF</span>
           </div>
           <div className="mini-grid">
-            <Field label="CIDB Verified" value={dashboard.cidbVerified} cls="ok" />
-            <Field label="CIDB Expired" value={dashboard.cidbExpired} cls="bad" />
-            <Field label="CIDB Unknown" value={dashboard.cidbUnknown} cls="warn" />
-            <Field label="MOF Verified" value={dashboard.mofVerified} cls="ok" />
-            <Field label="MOF Expired" value={dashboard.mofExpired} cls="bad" />
-            <Field label="MOF Unknown" value={dashboard.mofUnknown} cls="warn" />
+            <Field label="CIDB Disahkan" value={dashboard.cidbVerified} cls="ok" />
+            <Field label="CIDB Tamat Tempoh" value={dashboard.cidbExpired} cls="bad" />
+            <Field label="CIDB Belum Lengkap" value={dashboard.cidbUnknown} cls="warn" />
+            <Field label="MOF Disahkan" value={dashboard.mofVerified} cls="ok" />
+            <Field label="MOF Tamat Tempoh" value={dashboard.mofExpired} cls="bad" />
+            <Field label="MOF Belum Lengkap" value={dashboard.mofUnknown} cls="warn" />
           </div>
         </section>
 
         <section className="card pad">
           <div className="title">
-            <h2>Evidence Pipeline</h2>
-            <span>unified status model</span>
+            <h2>Status Dokumen</h2>
+            <span>alur kerja semakan</span>
           </div>
           <div className="status-list">
             {unifiedStatuses.map((status) => (
@@ -230,23 +241,23 @@ export default function HomePage() {
 
         <section className="card pad">
           <div className="title">
-            <h2>Action Queues</h2>
-            <span>minimum compliance ALARP</span>
+            <h2>Perlu Tindakan</h2>
+            <span>pematuhan minimum ALARP</span>
           </div>
           <div className="action-list">
-            <Link href="/evidence-verification">Pending verification: {dashboard.pendingCompanies}</Link>
-            <Link href="/company-overview">Imported only: {dashboard.importedCompanies}</Link>
-            <Link href="/company-overview">Not imported / missing: {dashboard.notImportedCompanies}</Link>
-            <Link href="/pdf-vault">PDFs pending extraction: {dashboard.pendingPdfs}</Link>
+            <Link href="/evidence-verification">Menunggu semakan: {dashboard.pendingCompanies}</Link>
+            <Link href="/company-overview">Data awal: {dashboard.importedCompanies}</Link>
+            <Link href="/company-overview">Belum lengkap: {dashboard.notImportedCompanies}</Link>
+            <Link href="/pdf-vault">Dokumen belum dibaca: {dashboard.pendingPdfs}</Link>
           </div>
         </section>
       </div>
 
       <div className="grid modules">
-        <ModuleCard href="/company-overview" title="Company Overview" body="Work from current verified state before moving into action or verification." />
-        <ModuleCard href="/company-master-import" title="Import Centre" body="Sheet data enters as imported starting records, not verified truth." />
-        <ModuleCard href="/drive-vault-import" title="Drive Mapping" body="Match company folders and route PDFs into the compliance pipeline." />
-        <ModuleCard href="/readiness" title="Company Action Profile" body="See what exists, what is missing, and what needs action now." />
+        <ModuleCard href="/company-overview" title="Pilih Syarikat" body="Lihat status semasa sebelum membuat semakan atau tindakan." />
+        <ModuleCard href="/company-master-import" title="Masuk Data Awal" body="Data daripada sheet ialah rekod awal dan belum dianggap sah." />
+        <ModuleCard href="/drive-vault-import" title="Semak Folder Drive" body="Padankan folder syarikat dan dokumen sokongan." />
+        <ModuleCard href="/readiness" title="Lihat Tindakan" body="Lihat apa yang ada, apa yang kurang, dan tindakan seterusnya." />
       </div>
 
       <style jsx global>{`
@@ -300,7 +311,7 @@ function Kpi({ label, value, note, cls = "" }: { label: string; value: unknown; 
 }
 
 function Badge({ value }: { value: string }) {
-  return <span className={`badge ${statusClass(value)}`}>{value}</span>;
+  return <span className={`badge ${statusClass(value)}`}>{statusLabels[value] || value}</span>;
 }
 
 function Field({ label, value, cls = "" }: { label: string; value: unknown; cls?: string }) {

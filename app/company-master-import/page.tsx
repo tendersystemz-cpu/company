@@ -581,7 +581,7 @@ export default function CompanyMasterImportPage() {
       <div className="head">
         <div>
           <div className="kicker">Tender Systemz</div>
-          <h1>Company Master Import</h1>
+          <h1>Legacy Import - Direct Write</h1>
           <p>
             Import DATA MASTER COMPANY Google Sheet, update companies, create CIDB
             PPK/SPKK/STB evidence, then sync readiness.
@@ -596,6 +596,10 @@ export default function CompanyMasterImportPage() {
             {syncing ? "Syncing..." : "Sync + Evaluate"}
           </button>
         </div>
+      </div>
+
+      <div className="card pad error">
+        <strong>AMARAN:</strong> Halaman ini menulis terus ke rekod syarikat dan evidence_register. Jangan gunakan untuk Phase 1 raw staging kecuali admin faham risikonya.
       </div>
 
       {error && <div className="card pad error">{error}</div>}

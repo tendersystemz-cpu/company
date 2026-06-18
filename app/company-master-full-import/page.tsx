@@ -192,7 +192,7 @@ export default function CompanyMasterFullImportPage() {
     <main>
       <div className="module-header">
         <div>
-          <div className="module-title">Company Master Full Import</div>
+          <div className="module-title">Import Centre - Data Awal / Staging</div>
           <div className="module-subtitle">
             Stage actual DATA MASTER COMPANY rows. This does not overwrite source-of-truth tables.
           </div>
@@ -201,6 +201,10 @@ export default function CompanyMasterFullImportPage() {
           Refresh Rows
         </button>
       </div>
+
+      <section className="compact-card" style={safeNote}>
+        Data yang diimport di sini disimpan sebagai Data Awal / Staging sahaja. Ia tidak terus mengubah rekod syarikat yang disahkan.
+      </section>
 
       <section className="compact-card" style={importBox}>
         <label style={labelStyle}>
@@ -282,6 +286,7 @@ export default function CompanyMasterFullImportPage() {
 function MiniStat({ label, value }: { label: string; value: number }) { return <div className="compact-card"><span className="muted">{label}</span><br /><b>{value}</b></div>; }
 function Info({ label, value }: { label: string; value: any }) { return <div style={infoBox}><span className="muted">{label}</span><br /><b>{value}</b></div>; }
 const importBox: CSSProperties = { padding: 10, marginBottom: 8 };
+const safeNote: CSSProperties = { padding: 10, marginBottom: 8, background: "#ecfdf5", color: "#065f46", borderColor: "#a7f3d0", fontWeight: 700 };
 const statsGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(4, 150px)", gap: 8, marginBottom: 8 };
 const layout: CSSProperties = { display: "grid", gridTemplateColumns: "420px minmax(0, 1fr)", gap: 10 };
 const leftPanel: CSSProperties = { padding: 10 };
