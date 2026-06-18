@@ -6,6 +6,18 @@ import { supabase } from "@/lib/supabaseClient";
 type Row = Record<string, unknown>;
 type SafeResult = { rows: Row[]; error: string };
 type CriticalCategory = { label: string; terms: string[] };
+type TrustClass =
+  | "REAL_LINKED_EVIDENCE"
+  | "DUMMY_TEST_EVIDENCE"
+  | "BLANK_LINK_EVIDENCE"
+  | "GENERATED_INFERRED_EVIDENCE"
+  | "MANDATORY_GAP_PLACEHOLDER";
+
+type ClassifiedEvidence = {
+  row: Row;
+  trustClass: TrustClass;
+  malformedDate: boolean;
+};
 
 const criticalCategories: CriticalCategory[] = [
   { label: "SSM", terms: ["ssm", "company profile", "superform"] },
@@ -87,17 +99,48 @@ function evidenceLink(row: Row) {
   );
 }
 
-function hasLink(row: Row) {
-  return !!evidenceLink(row);
+function evidenceSourceText(row: Row) {
+  return n([
+    row.evidence_url,
+    row.file_url,
+    row.source_url,
+    row.google_drive_url,
+    row.drive_url,
+    row.drive_file_id,
+    row.google_drive_file_id,
+    row.remarks,
+    row.source_ref,
+    row.source_table,
+  ].join(" "));
 }
 
-function isSuspiciousLink(row: Row) {
+function hasUsableGoogleDriveReference(row: Row) {
   const link = n(evidenceLink(row));
-  return !link || link.includes("dummy") || link.includes("placeholder") || link.includes("test");
+  if (!link) return false;
+  if (link.includes("dummy") || link.includes("placeholder") || link.includes("test") || link.includes("sample")) return false;
+  return true;
 }
 
-function usableLink(row: Row) {
-  return hasLink(row) && !isSuspiciousLink(row);
+function isDummyTestEvidence(row: Row) {
+  const text = evidenceSourceText(row);
+  return text.includes("dummy") || text.includes("dummy-") || text.includes("test") || text.includes("sample") || text.includes("placeholder");
+}
+
+function isGeneratedInferredEvidence(row: Row) {
+  const text = evidenceSourceText(row);
+  return text.includes("generated from data master company import") || text.includes("company_inference") || text.includes("evidence_register/company_inference");
+}
+
+function isMandatoryGapPlaceholder(row: Row) {
+  return evidenceSourceText(row).includes("mandatory-gap");
+}
+
+function trustClass(row: Row): TrustClass {
+  if (isMandatoryGapPlaceholder(row)) return "MANDATORY_GAP_PLACEHOLDER";
+  if (isDummyTestEvidence(row)) return "DUMMY_TEST_EVIDENCE";
+  if (isGeneratedInferredEvidence(row)) return "GENERATED_INFERRED_EVIDENCE";
+  if (hasUsableGoogleDriveReference(row)) return "REAL_LINKED_EVIDENCE";
+  return "BLANK_LINK_EVIDENCE";
 }
 
 function expiryValue(row: Row) {
@@ -120,7 +163,13 @@ function malformedExpiry(row: Row) {
   if (!value) return false;
   const date = new Date(value);
   const year = Number(value.slice(0, 4));
-  return Number.isNaN(date.getTime()) || year < 1900 || year > 2100;
+  return (
+    Number.isNaN(date.getTime()) ||
+    year < 1995 ||
+    year > 2100 ||
+    value.startsWith("0202") ||
+    value.startsWith("000")
+  );
 }
 
 function evidenceTitle(row: Row) {
@@ -129,10 +178,22 @@ function evidenceTitle(row: Row) {
 
 function statusTone(value: string) {
   const lower = n(value);
-  if (lower.includes("sedia") || lower.includes("baik") || lower.includes("ada")) return "ok";
-  if (lower.includes("semakan") || lower.includes("sebahagian") || lower.includes("dummy")) return "warn";
-  if (lower.includes("tiada") || lower.includes("anomali") || lower.includes("kosong")) return "bad";
+  if (lower.includes("real linked") || lower.includes("sedia") || lower.includes("baik")) return "ok";
+  if (lower.includes("semakan") || lower.includes("sebahagian") || lower.includes("dummy") || lower.includes("generated")) return "warn";
+  if (lower.includes("tiada") || lower.includes("anomali") || lower.includes("kosong") || lower.includes("belum evidence-backed")) return "bad";
   return "neutral";
+}
+
+function trustLabel(value: TrustClass) {
+  if (value === "REAL_LINKED_EVIDENCE") return "Real Linked Evidence";
+  if (value === "DUMMY_TEST_EVIDENCE") return "Dummy / Test Evidence";
+  if (value === "BLANK_LINK_EVIDENCE") return "Blank Link Evidence";
+  if (value === "GENERATED_INFERRED_EVIDENCE") return "Generated / Inferred Evidence";
+  return "Mandatory Gap Placeholder";
+}
+
+function countClass(rows: ClassifiedEvidence[], value: TrustClass) {
+  return rows.filter((item) => item.trustClass === value).length;
 }
 
 async function safeRead(table: string, limit = 50000): Promise<SafeResult> {
@@ -187,31 +248,44 @@ export default function EvidenceMappingAdminPage() {
     const validEvidence = allEvidence.filter((row) =>
       validCompanies.some((company) => sameCompany(row, company))
     );
+    const classifiedEvidence: ClassifiedEvidence[] = validEvidence.map((row) => ({
+      row,
+      trustClass: trustClass(row),
+      malformedDate: malformedExpiry(row),
+    }));
+    const realLinkedEvidence = classifiedEvidence.filter((item) => item.trustClass === "REAL_LINKED_EVIDENCE");
 
     const companyRows = validCompanies.map((company) => {
       const rows = allEvidence.filter((row) => sameCompany(row, company));
+      const classifiedRows = rows.map((row) => ({
+        row,
+        trustClass: trustClass(row),
+        malformedDate: malformedExpiry(row),
+      }));
       const missing = criticalCategories
         .filter((category) => !rows.some((row) => matchesCategory(row, category)))
         .map((category) => category.label);
-      const suspiciousLinks = rows.filter(isSuspiciousLink).length;
-      const usableLinks = rows.filter(usableLink).length;
-      const expiryAnomalies = rows.filter(malformedExpiry).length;
+      const realLinkedCount = countClass(classifiedRows, "REAL_LINKED_EVIDENCE");
+      const nonRealCount = rows.length - realLinkedCount;
+      const expiryAnomalies = classifiedRows.filter((item) => item.malformedDate).length;
       const mappingStatus = !rows.length
-        ? "Tiada bukti"
-        : missing.length || suspiciousLinks || expiryAnomalies
+        ? "Tiada rekod evidence"
+        : missing.length || nonRealCount || expiryAnomalies
           ? "Perlu semakan"
           : "Sedia dipetakan";
       const linkQuality = !rows.length
-        ? "Tiada bukti"
-        : usableLinks && suspiciousLinks
-          ? "Sebahagian pautan baik"
-          : usableLinks
-            ? "Ada pautan boleh guna"
-            : "Tiada pautan boleh guna";
+        ? "Belum Evidence-Backed"
+        : realLinkedCount && nonRealCount
+          ? "Sebahagian real linked"
+          : realLinkedCount
+            ? "Real Linked Evidence"
+            : "Belum Evidence-Backed";
 
       return {
         company,
         evidenceCount: rows.length,
+        realLinkedCount,
+        nonRealCount,
         missing,
         linkQuality,
         expiryAnomalies,
@@ -220,25 +294,41 @@ export default function EvidenceMappingAdminPage() {
     });
 
     const companiesWithEvidence = companyRows.filter((row) => row.evidenceCount > 0).length;
+    const companiesWithRealLinkedEvidence = companyRows.filter((row) => row.realLinkedCount > 0).length;
     const companiesNoEvidence = companyRows.filter((row) => row.evidenceCount === 0);
-    const suspiciousLinks = validEvidence.filter(isSuspiciousLink);
-    const expiryAnomalies = validEvidence.filter(malformedExpiry);
+    const dummyTestEvidence = classifiedEvidence.filter((item) => item.trustClass === "DUMMY_TEST_EVIDENCE");
+    const blankLinkEvidence = classifiedEvidence.filter((item) => item.trustClass === "BLANK_LINK_EVIDENCE");
+    const generatedInferredEvidence = classifiedEvidence.filter((item) => item.trustClass === "GENERATED_INFERRED_EVIDENCE");
+    const mandatoryGapPlaceholders = classifiedEvidence.filter((item) => item.trustClass === "MANDATORY_GAP_PLACEHOLDER");
+    const expiryAnomalies = classifiedEvidence.filter((item) => item.malformedDate);
     const zeroCoverage = criticalCategories.filter((category) =>
       !validEvidence.some((row) => matchesCategory(row, category))
     );
 
     const coverage = criticalCategories.map((category) => {
       const rows = validEvidence.filter((row) => matchesCategory(row, category));
+      const classifiedRows = classifiedEvidence.filter((item) => matchesCategory(item.row, category));
       const coveredCompanies = validCompanies.filter((company) =>
         rows.some((row) => sameCompany(row, company))
+      ).length;
+      const realLinkedCompanies = validCompanies.filter((company) =>
+        realLinkedEvidence.some((item) => sameCompany(item.row, company) && matchesCategory(item.row, category))
+      ).length;
+      const dummyBlankGeneratedCount = classifiedRows.filter((item) =>
+        item.trustClass === "DUMMY_TEST_EVIDENCE" ||
+        item.trustClass === "BLANK_LINK_EVIDENCE" ||
+        item.trustClass === "GENERATED_INFERRED_EVIDENCE"
       ).length;
 
       return {
         category: category.label,
         rows: rows.length,
         coveredCompanies,
+        realLinkedCompanies,
         missingCompanies: validCompanies.length - coveredCompanies,
-        usableLinks: rows.filter(usableLink).length,
+        dummyBlankGeneratedCount,
+        mandatoryGapPlaceholders: countClass(classifiedRows, "MANDATORY_GAP_PLACEHOLDER"),
+        expiryAnomalies: classifiedRows.filter((item) => item.malformedDate).length,
         expiryDates: rows.filter(hasExpiry).length,
       };
     });
@@ -247,14 +337,19 @@ export default function EvidenceMappingAdminPage() {
       allEvidence,
       validCompanies,
       validEvidence,
+      classifiedEvidence,
       companyRows,
       companiesWithEvidence,
+      companiesWithRealLinkedEvidence,
       companiesNoEvidence,
-      suspiciousLinks,
+      realLinkedEvidence,
+      dummyTestEvidence,
+      blankLinkEvidence,
+      generatedInferredEvidence,
+      mandatoryGapPlaceholders,
       expiryAnomalies,
       zeroCoverage,
       coverage,
-      rowsWithUsableLinks: validEvidence.filter(usableLink).length,
       rowsWithExpiry: validEvidence.filter(hasExpiry).length,
     };
   }, [companies, evidenceIndex, evidenceRegister]);
@@ -280,6 +375,10 @@ export default function EvidenceMappingAdminPage() {
         <strong>AMARAN:</strong> Halaman admin ini untuk semakan mapping bukti sahaja. Ia tidak mengesahkan data syarikat dan tidak mengubah Company Overview.
       </section>
 
+      <section className="card pad bad">
+        <strong>PERINGATAN TRUST:</strong> Rows generated from imports, dummy links, blank links, and mandatory-gap placeholders are not verified evidence and must not be treated as Company Overview truth.
+      </section>
+
       {errors.length > 0 && (
         <section className="card pad bad">
           <strong>Sebahagian data tidak dapat dibaca.</strong>
@@ -289,13 +388,15 @@ export default function EvidenceMappingAdminPage() {
 
       <section className="grid kpis">
         <Kpi label="Syarikat Sah" value={loading ? "..." : model.validCompanies.length} />
-        <Kpi label="Ada Bukti" value={loading ? "..." : model.companiesWithEvidence} tone="ok" />
-        <Kpi label="Tiada Bukti" value={loading ? "..." : model.companiesNoEvidence.length} tone="bad" />
-        <Kpi label="Baris Bukti" value={loading ? "..." : model.validEvidence.length} />
-        <Kpi label="Pautan Boleh Guna" value={loading ? "..." : model.rowsWithUsableLinks} tone="ok" />
-        <Kpi label="Ada Tarikh Luput" value={loading ? "..." : model.rowsWithExpiry} />
-        <Kpi label="Pautan Disyaki" value={loading ? "..." : model.suspiciousLinks.length} tone="warn" />
-        <Kpi label="Tarikh Anomali" value={loading ? "..." : model.expiryAnomalies.length} tone="bad" />
+        <Kpi label="Ada Rekod Evidence" value={loading ? "..." : model.companiesWithEvidence} />
+        <Kpi label="Belum Evidence-Backed" value={loading ? "..." : model.validCompanies.length - model.companiesWithRealLinkedEvidence} tone="bad" />
+        <Kpi label="Total Evidence Rows" value={loading ? "..." : model.validEvidence.length} />
+        <Kpi label="Real Linked Evidence" value={loading ? "..." : model.realLinkedEvidence.length} tone="ok" />
+        <Kpi label="Dummy / Test Evidence" value={loading ? "..." : model.dummyTestEvidence.length} tone="warn" />
+        <Kpi label="Blank Link Evidence" value={loading ? "..." : model.blankLinkEvidence.length} tone="bad" />
+        <Kpi label="Generated / Inferred" value={loading ? "..." : model.generatedInferredEvidence.length} tone="warn" />
+        <Kpi label="Mandatory Gap Placeholder" value={loading ? "..." : model.mandatoryGapPlaceholders.length} tone="bad" />
+        <Kpi label="Malformed Expiry Rows" value={loading ? "..." : model.expiryAnomalies.length} tone="bad" />
       </section>
 
       <section className="card pad">
@@ -308,11 +409,12 @@ export default function EvidenceMappingAdminPage() {
             <thead>
               <tr>
                 <th>Kategori</th>
-                <th>Syarikat Ada Bukti</th>
-                <th>Syarikat Tiada Bukti</th>
-                <th>Baris Bukti</th>
-                <th>Pautan Boleh Guna</th>
-                <th>Tarikh Luput</th>
+                <th>Syarikat Ada Rekod</th>
+                <th>Syarikat Real Linked</th>
+                <th>Baris Evidence</th>
+                <th>Dummy / Blank / Generated</th>
+                <th>Mandatory Gap</th>
+                <th>Expiry Anomaly</th>
                 <th>Status Mapping</th>
               </tr>
             </thead>
@@ -321,11 +423,12 @@ export default function EvidenceMappingAdminPage() {
                 <tr key={row.category}>
                   <td><strong>{row.category}</strong></td>
                   <td>{row.coveredCompanies}</td>
-                  <td>{row.missingCompanies}</td>
+                  <td>{row.realLinkedCompanies}</td>
                   <td>{row.rows}</td>
-                  <td>{row.usableLinks}</td>
-                  <td>{row.expiryDates}</td>
-                  <td><Badge value={row.coveredCompanies ? "Perlu semakan bukti" : "Kosong"} /></td>
+                  <td>{row.dummyBlankGeneratedCount}</td>
+                  <td>{row.mandatoryGapPlaceholders}</td>
+                  <td>{row.expiryAnomalies}</td>
+                  <td><Badge value={row.realLinkedCompanies ? "Ada real linked" : row.coveredCompanies ? "Belum Evidence-Backed" : "Kosong"} /></td>
                 </tr>
               ))}
             </tbody>
@@ -344,7 +447,8 @@ export default function EvidenceMappingAdminPage() {
             <thead>
               <tr>
                 <th>Syarikat</th>
-                <th>Bil. Bukti</th>
+                <th>Bil. Rekod</th>
+                <th>Real Linked</th>
                 <th>Kategori Kritikal Hilang</th>
                 <th>Kualiti Pautan</th>
                 <th>Anomali Tarikh</th>
@@ -359,6 +463,7 @@ export default function EvidenceMappingAdminPage() {
                     <small>{txt(row.company.company_code) || "Tiada kod"}</small>
                   </td>
                   <td>{row.evidenceCount}</td>
+                  <td>{row.realLinkedCount}</td>
                   <td>{row.missing.slice(0, 6).join(", ") || "Lengkap untuk senarai kritikal"}{row.missing.length > 6 ? ` +${row.missing.length - 6}` : ""}</td>
                   <td><Badge value={row.linkQuality} /></td>
                   <td>{row.expiryAnomalies}</td>
@@ -380,20 +485,44 @@ export default function EvidenceMappingAdminPage() {
           empty="Semua syarikat sah mempunyai sekurang-kurangnya satu rekod bukti."
         />
         <IssueList
-          title="Pautan Hilang / Dummy"
-          rows={model.suspiciousLinks.slice(0, 30).map((row) => ({
-            title: `${txt(row.company_name) || "Tiada syarikat"} - ${evidenceTitle(row)}`,
-            meta: evidenceLink(row) || "Tiada pautan",
+          title="Dummy / Test Evidence"
+          rows={model.dummyTestEvidence.slice(0, 30).map((item) => ({
+            title: `${txt(item.row.company_name) || "Tiada syarikat"} - ${evidenceTitle(item.row)}`,
+            meta: evidenceLink(item.row) || txt(item.row.remarks) || "Dummy/test marker",
           }))}
-          empty="Tiada pautan disyaki dalam bacaan semasa."
+          empty="Tiada dummy/test evidence dikesan."
+        />
+        <IssueList
+          title="Blank Link Evidence"
+          rows={model.blankLinkEvidence.slice(0, 30).map((item) => ({
+            title: `${txt(item.row.company_name) || "Tiada syarikat"} - ${evidenceTitle(item.row)}`,
+            meta: trustLabel(item.trustClass),
+          }))}
+          empty="Tiada evidence kosong pautan dikesan."
+        />
+        <IssueList
+          title="Generated / Inferred Evidence"
+          rows={model.generatedInferredEvidence.slice(0, 30).map((item) => ({
+            title: `${txt(item.row.company_name) || "Tiada syarikat"} - ${evidenceTitle(item.row)}`,
+            meta: txt(item.row.source_ref) || txt(item.row.remarks) || trustLabel(item.trustClass),
+          }))}
+          empty="Tiada generated/inferred evidence dikesan."
         />
         <IssueList
           title="Tarikh Luput Anomali"
-          rows={model.expiryAnomalies.slice(0, 30).map((row) => ({
-            title: `${txt(row.company_name) || "Tiada syarikat"} - ${evidenceTitle(row)}`,
-            meta: expiryValue(row) || "Tarikh tidak sah",
+          rows={model.expiryAnomalies.slice(0, 30).map((item) => ({
+            title: `${txt(item.row.company_name) || "Tiada syarikat"} - ${evidenceTitle(item.row)}`,
+            meta: `${expiryValue(item.row) || "Tarikh tidak sah"} / ${trustLabel(item.trustClass)}`,
           }))}
           empty="Tiada tarikh luput anomali dikesan."
+        />
+        <IssueList
+          title="Mandatory Gap Placeholder"
+          rows={model.mandatoryGapPlaceholders.slice(0, 30).map((item) => ({
+            title: `${txt(item.row.company_name) || "Tiada syarikat"} - ${evidenceTitle(item.row)}`,
+            meta: txt(item.row.source_ref) || trustLabel(item.trustClass),
+          }))}
+          empty="Tiada mandatory-gap placeholder dikesan."
         />
         <IssueList
           title="Kategori Kosong"
