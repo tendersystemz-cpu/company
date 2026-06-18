@@ -1,54 +1,44 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  type ClassifiedEvidence,
+  type EvidenceComplianceState,
+  type EvidenceRow,
+  type EvidenceTruthState,
+  classifyEvidence,
+  evidenceComplianceStateLabels,
+  evidenceTruthStateLabels,
+  getEvidenceUrl,
+  getExpiryValue,
+  parseEvidenceExpiry,
+} from "@/lib/evidenceClassification";
 import { supabase } from "@/lib/supabaseClient";
 
-type Row = Record<string, unknown>;
+type Row = EvidenceRow;
 type Risk = "Rendah" | "Sederhana" | "Tinggi" | "Kritikal";
-type LinkValidity = "GOOGLE_DRIVE_FILE" | "GOOGLE_SHEET_REFERENCE" | "BLANK" | "MALFORMED" | "OTHER_URL";
-type ComplianceState = "ACTIVE" | "EXPIRING_SOON" | "EXPIRED" | "NO_EXPIRY" | "MALFORMED_EXPIRY";
-type TruthState =
-  | "COMPLIANCE_READY"
-  | "EVIDENCE_BACKED_ACTIVE"
-  | "EVIDENCE_BACKED_EXPIRED"
-  | "EVIDENCE_BACKED_NO_EXPIRY"
-  | "SOURCE_SHEET_REFERENCE"
-  | "INVALID_LINK"
-  | "PLACEHOLDER_OR_DUMMY"
-  | "NOT_EVIDENCE_BACKED";
+type CoreItem = {
+  label: string;
+  row: Row | null;
+  no: string;
+  requiresExpiry: boolean;
+  classified: ClassifiedEvidence | null;
+};
 type CompanyView = {
   company: Row;
   evidence: Row[];
-  core: { label: string; row: Row | null; no: string; requiresExpiry: boolean }[];
-  evidenceBacked: Row[];
-  complianceReady: Row[];
-  expiredBacked: Row[];
-  sheetRefs: Row[];
-  invalidLinks: Row[];
-  placeholders: Row[];
-  pending: Row[];
-  anomalies: Row[];
+  classified: ClassifiedEvidence[];
+  core: CoreItem[];
+  evidenceBacked: ClassifiedEvidence[];
+  complianceReady: ClassifiedEvidence[];
+  expiredBacked: ClassifiedEvidence[];
+  sheetRefs: ClassifiedEvidence[];
+  invalidLinks: ClassifiedEvidence[];
+  placeholders: ClassifiedEvidence[];
+  pending: ClassifiedEvidence[];
+  anomalies: ClassifiedEvidence[];
   risk: Risk;
   score: number;
-};
-
-const truthLabels: Record<TruthState, string> = {
-  COMPLIANCE_READY: "Compliance Ready",
-  EVIDENCE_BACKED_ACTIVE: "Evidence-backed, belum disahkan penuh",
-  EVIDENCE_BACKED_EXPIRED: "Evidence-backed, tamat tempoh",
-  EVIDENCE_BACKED_NO_EXPIRY: "Evidence-backed, tarikh tidak lengkap",
-  SOURCE_SHEET_REFERENCE: "Rujukan Sheet, bukan Evidence Vault",
-  INVALID_LINK: "Link tidak sah / tidak lengkap",
-  PLACEHOLDER_OR_DUMMY: "Dummy / placeholder",
-  NOT_EVIDENCE_BACKED: "Belum evidence-backed",
-};
-
-const complianceLabels: Record<ComplianceState, string> = {
-  ACTIVE: "Aktif",
-  EXPIRING_SOON: "Hampir tamat",
-  EXPIRED: "Tamat tempoh",
-  NO_EXPIRY: "Tiada tarikh tamat",
-  MALFORMED_EXPIRY: "Tarikh tidak sah",
 };
 
 function txt(value: unknown) {
@@ -68,81 +58,8 @@ function first(row: Row | null | undefined, keys: string[], fallback = "") {
   return fallback;
 }
 
-function safeDate(value: unknown) {
-  const raw = txt(value);
-  if (!raw) return { raw, date: null as Date | null, anomaly: false };
-  const startsBad = raw.startsWith("0202") || raw.startsWith("000");
-  const isoYear = raw.match(/^(\d{1,4})(?=-)/);
-  const groups = raw.match(/\d+/g) || [];
-  const hasFourDigitYear = groups.some((group) => group.length === 4);
-  const hasShortLikelyYear = groups.some((group) => group.length > 1 && group.length < 4 && Number(group) > 31);
-  const fewerThanFourDigits = isoYear ? isoYear[1].length < 4 : !hasFourDigitYear && hasShortLikelyYear;
-  const date = new Date(raw);
-  const parsedInvalid = Number.isNaN(date.getTime());
-  const year = parsedInvalid ? 0 : date.getFullYear();
-  const impossibleYear = !parsedInvalid && (year < 1995 || year > 2100);
-  const anomaly = startsBad || fewerThanFourDigits || parsedInvalid || impossibleYear;
-  return { raw, date: anomaly ? null : date, anomaly };
-}
-
-function formatDate(value: unknown) {
-  const checked = safeDate(value);
-  if (!checked.raw) return "-";
-  if (checked.anomaly || !checked.date) return "Tarikh Tidak Sah";
-  return checked.date.toLocaleDateString("en-GB");
-}
-
-function daysToExpiry(value: unknown) {
-  const checked = safeDate(value);
-  if (!checked.date || checked.anomaly) return null;
-  const date = new Date(checked.date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  date.setHours(0, 0, 0, 0);
-  const days = Math.ceil((date.getTime() - today.getTime()) / 86400000);
-  return Number.isFinite(days) && Math.abs(days) <= 36500 ? days : null;
-}
-
-function expiryValue(row: Row | null | undefined) {
-  return first(row || {}, [
-    "expiry_date",
-    "valid_until",
-    "effective_to",
-    "ppk_expiry_date",
-    "spkk_expiry_date",
-    "stb_expiry_date",
-    "mof_expiry_date",
-    "score_expiry_date",
-    "score_expiry",
-  ]);
-}
-
-function issueValue(row: Row | null | undefined) {
-  return first(row || {}, ["issue_date", "issued_date", "effective_from", "document_date", "created_at"]);
-}
-
-function remainingLabel(value: unknown) {
-  const checked = safeDate(value);
-  if (checked.anomaly) return "Perlu semakan";
-  const days = daysToExpiry(value);
-  if (days === null) return "Belum lengkap";
-  if (days < 0) return `Tamat ${Math.abs(days)} hari`;
-  return `${days} hari`;
-}
-
-function hasMalformedDate(row: Row | null | undefined) {
-  if (!row) return false;
-  return [
-    row.expiry_date,
-    row.valid_until,
-    row.effective_to,
-    row.ppk_expiry_date,
-    row.spkk_expiry_date,
-    row.stb_expiry_date,
-    row.mof_expiry_date,
-    row.score_expiry_date,
-    row.score_expiry,
-  ].some((value) => safeDate(value).anomaly);
+function withSource(row: Row, sourceTable: string): Row {
+  return { ...row, _source_table: sourceTable };
 }
 
 function companyKey(row: Row) {
@@ -160,6 +77,7 @@ function sameCompany(row: Row, company: Row) {
   const companyCode = txt(company.company_code);
   const rowName = n(row.company_name);
   const companyName = n(company.company_name);
+
   return (
     (!!rowId && !!companyId && rowId === companyId) ||
     (!!rowCode && !!companyCode && rowCode === companyCode) ||
@@ -167,91 +85,59 @@ function sameCompany(row: Row, company: Row) {
   );
 }
 
-function evidenceUrl(row: Row | null | undefined) {
-  return first(row || {}, ["evidence_url", "file_url", "source_url", "ppk_document_url", "spkk_document_url", "stb_document_url"]);
-}
-
-function evidenceTitle(row: Row | null | undefined) {
-  return first(row || {}, ["document_title", "file_name", "document_type", "category_code"], "Dokumen");
-}
-
-function categoryText(row: Row) {
+function categoryText(row: Row | null | undefined) {
+  if (!row) return "";
   return n([row.category_code, row.document_type, row.document_title, row.file_name, row.category_name].join(" "));
 }
 
-function linkValidity(row: Row | null | undefined): LinkValidity {
-  const url = evidenceUrl(row);
-  const fileId = first(row || {}, ["drive_file_id", "google_drive_file_id", "source_drive_file_id", "file_id"]);
-  if (!url && !fileId) return "BLANK";
-  if (url.includes("docs.google.com/spreadsheets") || url.includes("/spreadsheets/d/")) return "GOOGLE_SHEET_REFERENCE";
-  if (/^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+/i.test(url)) return "GOOGLE_DRIVE_FILE";
-  if (/^[A-Za-z0-9_-]{20,}$/.test(fileId)) return "GOOGLE_DRIVE_FILE";
-  if (/^https?:\/\//i.test(url)) return "OTHER_URL";
-  return "MALFORMED";
+function filterEvidence(rows: Row[], terms: string[]) {
+  const lowered = terms.map(n);
+  return rows.filter((row) => lowered.some((term) => categoryText(row).includes(term)));
 }
 
-function complianceState(row: Row | null | undefined): ComplianceState {
-  const expiry = expiryValue(row);
-  const checked = safeDate(expiry);
-  if (checked.anomaly) return "MALFORMED_EXPIRY";
-  const days = daysToExpiry(expiry);
-  if (days === null) return "NO_EXPIRY";
-  if (days < 0) return "EXPIRED";
-  if (days <= 60) return "EXPIRING_SOON";
-  return "ACTIVE";
+function evidenceTitle(row: Row | null | undefined) {
+  return first(row, ["document_title", "file_name", "document_type", "category_code"], "Dokumen");
 }
 
-function isPlaceholder(row: Row | null | undefined) {
-  const haystack = n([
-    row?.source_system,
-    row?.source_type,
-    row?.data_quality_status,
-    row?.trust_class,
-    row?.evidence_trust_class,
-    row?.document_title,
-    row?.file_name,
-    row?.remarks,
-    row?.reviewer_notes,
-  ].join(" "));
-  return ["dummy", "test", "sample", "placeholder", "generated", "inferred", "mandatory gap"].some((term) => haystack.includes(term));
+function sourceLabel(row: Row | null | undefined) {
+  return first(row, ["_source_table", "source_table", "source_system", "source_type"], "unknown source");
 }
 
-function isVerified(row: Row | null | undefined) {
-  const verification = n(row?.verification_status || row?.review_status || row?.evidence_status || row?.status);
-  const quality = n(row?.data_quality_status || row?.trust_class || row?.evidence_trust_class);
-  return verification.includes("verified") || verification.includes("disahkan") || quality === "verified" || quality.includes("real_linked");
+function issueValue(row: Row | null | undefined) {
+  return first(row, ["issue_date", "issued_date", "effective_from", "document_date", "created_at"]);
 }
 
-function isEvidenceBacked(row: Row | null | undefined) {
-  return !!row && linkValidity(row) === "GOOGLE_DRIVE_FILE" && !isPlaceholder(row);
+function formatDate(value: unknown) {
+  const raw = txt(value);
+  if (!raw) return "-";
+  const tempRow = { expiry_date: raw };
+  const parsed = parseEvidenceExpiry(tempRow);
+  if (!parsed) return "Tarikh Tidak Sah";
+  return parsed.toLocaleDateString("en-GB", { timeZone: "UTC" });
 }
 
-function isComplianceReady(row: Row | null | undefined) {
-  const state = complianceState(row);
-  return isEvidenceBacked(row) && isVerified(row) && (state === "ACTIVE" || state === "EXPIRING_SOON");
-}
+function remainingLabel(value: unknown) {
+  const raw = txt(value);
+  if (!raw) return "Belum lengkap";
+  const parsed = parseEvidenceExpiry({ expiry_date: raw });
+  if (!parsed) return "Perlu semakan";
 
-function truthState(row: Row | null | undefined): TruthState {
-  if (!row) return "NOT_EVIDENCE_BACKED";
-  if (isPlaceholder(row)) return "PLACEHOLDER_OR_DUMMY";
-  const link = linkValidity(row);
-  if (link === "GOOGLE_SHEET_REFERENCE") return "SOURCE_SHEET_REFERENCE";
-  if (link !== "GOOGLE_DRIVE_FILE") return "INVALID_LINK";
-  const state = complianceState(row);
-  if (isComplianceReady(row)) return "COMPLIANCE_READY";
-  if (state === "EXPIRED") return "EVIDENCE_BACKED_EXPIRED";
-  if (state === "NO_EXPIRY" || state === "MALFORMED_EXPIRY") return "EVIDENCE_BACKED_NO_EXPIRY";
-  return "EVIDENCE_BACKED_ACTIVE";
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const diffDays = Math.ceil((parsed.getTime() - today.getTime()) / 86400000);
+  if (diffDays < 0) return `Tamat ${Math.abs(diffDays)} hari`;
+  return `${diffDays} hari`;
 }
 
 function statusFromRow(row: Row | null | undefined) {
   if (!row) return "Not Imported";
   const status = n(row.status || row.evidence_status || row.review_status || row.readiness_status);
   const verification = n(row.verification_status || row.extraction_status);
-  const expiryDays = daysToExpiry(expiryValue(row));
-  if (hasMalformedDate(row)) return "Data Anomali";
+  const state = classifyEvidence(row).complianceState;
+
+  if (state === "MALFORMED_EXPIRY") return "Data Anomali";
   if (status.includes("mismatch") || verification.includes("mismatch")) return "Mismatch";
-  if (status.includes("expired") || (expiryDays !== null && expiryDays < 0)) return "Expired";
+  if (status.includes("expired") || state === "EXPIRED") return "Expired";
   if (verification.includes("verified") || status === "ready" || status === "verified") return "Verified";
   if (verification.includes("pending") || status.includes("need review") || status.includes("conditional")) return "Pending Verification";
   if (verification.includes("extract") || status.includes("extract")) return "Extracted";
@@ -260,39 +146,34 @@ function statusFromRow(row: Row | null | undefined) {
   return "Imported";
 }
 
-function badgeClass(value: string | Risk | TruthState | ComplianceState) {
+function badgeClass(value: string | Risk | EvidenceTruthState | EvidenceComplianceState) {
   const v = n(value);
-  if (["rendah", "verified", "compliance_ready", "active", "expiring_soon"].includes(v)) return "ok";
-  if (["sederhana", "pending verification", "imported", "evidence_backed_active", "evidence_backed_no_expiry", "no_expiry"].includes(v)) return "warn";
-  if (["tinggi", "kritikal", "expired", "mismatch", "data anomali", "source_sheet_reference", "invalid_link", "placeholder_or_dummy", "evidence_backed_expired", "malformed_expiry"].includes(v)) return "bad";
+  if (["rendah", "verified", "compliance_ready", "active", "expiring_soon", "compliance ready"].includes(v)) return "ok";
+  if (["sederhana", "pending verification", "imported", "evidence_backed_active", "evidence_backed_no_expiry", "no_expiry", "evidence backed - not ready"].includes(v)) return "warn";
+  if (["tinggi", "kritikal", "expired", "mismatch", "data anomali", "source_sheet_reference", "invalid_link", "placeholder_or_dummy", "evidence_backed_expired", "malformed_expiry", "evidence exists - expired"].includes(v)) return "bad";
   return "neutral";
 }
 
-function filterEvidence(rows: Row[], terms: string[]) {
-  const lowered = terms.map(n);
-  return rows.filter((row) => lowered.some((term) => categoryText(row).includes(term)));
-}
-
-function evidenceRank(row: Row) {
-  if (isComplianceReady(row)) return 100;
-  if (isEvidenceBacked(row) && isVerified(row)) return 80;
-  if (isEvidenceBacked(row)) return 60;
-  if (linkValidity(row) === "GOOGLE_SHEET_REFERENCE") return 30;
-  return statusFromRow(row) === "Verified" ? 20 : 10;
+function evidenceRank(classified: ClassifiedEvidence) {
+  if (classified.isComplianceReady) return 100;
+  if (classified.isEvidenceBacked && classified.isVerified) return 80;
+  if (classified.isEvidenceBacked) return 60;
+  if (classified.linkValidity === "GOOGLE_SHEET_REFERENCE") return 30;
+  return statusFromRow(classified.row) === "Verified" ? 20 : 10;
 }
 
 function findEvidence(rows: Row[], terms: string[]) {
-  return filterEvidence(rows, terms).sort((a, b) => evidenceRank(b) - evidenceRank(a))[0] || null;
+  return filterEvidence(rows, terms)
+    .map(classifyEvidence)
+    .sort((a, b) => evidenceRank(b) - evidenceRank(a))[0]?.row || null;
 }
 
-function riskFromCore(row: Row | null, requiresExpiry: boolean): Risk {
-  if (!row) return "Kritikal";
-  if (isComplianceReady(row)) return "Rendah";
-  const state = complianceState(row);
-  const truth = truthState(row);
-  if (state === "EXPIRED" || truth === "EVIDENCE_BACKED_EXPIRED") return "Kritikal";
-  if (truth === "SOURCE_SHEET_REFERENCE" || truth === "INVALID_LINK" || truth === "PLACEHOLDER_OR_DUMMY") return "Tinggi";
-  if (requiresExpiry && (state === "NO_EXPIRY" || state === "MALFORMED_EXPIRY")) return "Tinggi";
+function riskFromCore(item: CoreItem): Risk {
+  if (!item.row || !item.classified) return "Kritikal";
+  if (item.classified.isComplianceReady) return "Rendah";
+  if (item.classified.truthState === "EVIDENCE_BACKED_EXPIRED" || item.classified.complianceState === "EXPIRED") return "Kritikal";
+  if (["SOURCE_SHEET_REFERENCE", "INVALID_LINK", "PLACEHOLDER_OR_DUMMY"].includes(item.classified.truthState)) return "Tinggi";
+  if (item.requiresExpiry && ["NO_EXPIRY", "MALFORMED_EXPIRY"].includes(item.classified.complianceState)) return "Tinggi";
   return "Sederhana";
 }
 
@@ -305,12 +186,11 @@ function overviewStatus(view: CompanyView) {
 
 async function safeRead(table: string, limit = 5000) {
   const { data, error } = await supabase.from(table).select("*").limit(limit);
-  return { rows: (data || []) as unknown as Row[], error: error ? `${table}: ${error.message}` : "" };
+  return { rows: (data || []) as Row[], error: error ? `${table}: ${error.message}` : "" };
 }
 
 export default function CompanyOverviewPage() {
   const [companies, setCompanies] = useState<Row[]>([]);
-  const [snapshots, setSnapshots] = useState<Row[]>([]);
   const [evidenceIndex, setEvidenceIndex] = useState<Row[]>([]);
   const [evidenceRegister, setEvidenceRegister] = useState<Row[]>([]);
   const [cidbRegistrations, setCidbRegistrations] = useState<Row[]>([]);
@@ -323,21 +203,20 @@ export default function CompanyOverviewPage() {
 
   async function loadData() {
     setLoading(true);
-    const [companyRes, snapshotRes, indexRes, registerRes, cidbRes, mofRes] = await Promise.all([
+    const [companyRes, indexRes, registerRes, cidbRes, mofRes] = await Promise.all([
       safeRead("companies", 50000),
-      safeRead("company_readiness_snapshots", 5000),
       safeRead("company_evidence_index", 50000),
       safeRead("evidence_register", 50000),
       safeRead("cidb_registrations", 5000),
       safeRead("company_mof_codes", 5000),
     ]);
+
     setCompanies(companyRes.rows);
-    setSnapshots(snapshotRes.rows);
-    setEvidenceIndex(indexRes.rows);
-    setEvidenceRegister(registerRes.rows);
-    setCidbRegistrations(cidbRes.rows);
-    setMofCodes(mofRes.rows);
-    setErrors([companyRes.error, snapshotRes.error, indexRes.error, registerRes.error, cidbRes.error, mofRes.error].filter(Boolean));
+    setEvidenceIndex(indexRes.rows.map((row) => withSource(row, "company_evidence_index")));
+    setEvidenceRegister(registerRes.rows.map((row) => withSource(row, "evidence_register")));
+    setCidbRegistrations(cidbRes.rows.map((row) => withSource(row, "cidb_registrations")));
+    setMofCodes(mofRes.rows.map((row) => withSource(row, "company_mof_codes")));
+    setErrors([companyRes.error, indexRes.error, registerRes.error, cidbRes.error, mofRes.error].filter(Boolean));
     const firstKey = companyKey(companyRes.rows.find(isValidCompany) || companyRes.rows[0] || {});
     setSelectedKey((current) => current || firstKey);
     setLoading(false);
@@ -386,7 +265,7 @@ export default function CompanyOverviewPage() {
     const mofStb = findEvidence(evidence, ["mof stb", "taraf bumiputera mof", "stb mof"]);
     const tcc = findEvidence(evidence, ["tcc", "tax", "lhdn"]);
 
-    const core = [
+    const coreRows = [
       { label: "SSM", row: ssm, no: first(company, ["ssm_no", "registration_no"]), requiresExpiry: false },
       { label: "CIDB / PPK", row: ppk || cidb, no: first(cidb, ["ppk_serial", "cidb_no"]), requiresExpiry: true },
       { label: "SPKK", row: spkk || cidb, no: first(cidb, ["spkk_serial"]), requiresExpiry: true },
@@ -396,20 +275,29 @@ export default function CompanyOverviewPage() {
       { label: "MOF STB", row: mofStb, no: first(mofStb || {}, ["document_no", "certificate_no"]), requiresExpiry: true },
       { label: "TCC", row: tcc, no: first(tcc || {}, ["document_no"]), requiresExpiry: true },
     ];
-
-    const evidenceBacked = evidence.filter(isEvidenceBacked);
-    const complianceReady = evidence.filter(isComplianceReady);
-    const expiredBacked = evidenceBacked.filter((row) => complianceState(row) === "EXPIRED");
-    const sheetRefs = evidence.filter((row) => linkValidity(row) === "GOOGLE_SHEET_REFERENCE");
-    const invalidLinks = evidence.filter((row) => ["BLANK", "MALFORMED", "OTHER_URL"].includes(linkValidity(row)));
-    const placeholders = evidence.filter(isPlaceholder);
-    const pending = evidence.filter((row) => statusFromRow(row) === "Pending Verification");
-    const anomalies = evidence.filter((row) => statusFromRow(row) === "Data Anomali");
+    const core = coreRows.map((item) => ({ ...item, classified: item.row ? classifyEvidence(item.row) : null }));
+    const classified = evidence.map(classifyEvidence);
+    const evidenceBacked = classified.filter((item) => item.isEvidenceBacked);
+    const complianceReady = classified.filter((item) => item.isComplianceReady);
+    const expiredBacked = evidenceBacked.filter((item) => item.complianceState === "EXPIRED");
+    const sheetRefs = classified.filter((item) => item.linkValidity === "GOOGLE_SHEET_REFERENCE");
+    const invalidLinks = classified.filter((item) => ["BLANK", "MALFORMED", "OTHER_URL"].includes(item.linkValidity));
+    const placeholders = classified.filter((item) => item.truthState === "PLACEHOLDER_OR_DUMMY");
+    const pending = classified.filter((item) => statusFromRow(item.row) === "Pending Verification");
+    const anomalies = classified.filter((item) => item.complianceState === "MALFORMED_EXPIRY" || statusFromRow(item.row) === "Data Anomali");
     const penalty = expiredBacked.length * 18 + sheetRefs.length * 8 + invalidLinks.length * 8 + placeholders.length * 10 + anomalies.length * 10 + pending.length * 4;
-    const score = Math.max(0, Math.min(100, 60 + Math.min(complianceReady.length * 4, 20) - penalty));
-    const risk: Risk = expiredBacked.length ? "Kritikal" : anomalies.length || sheetRefs.length || invalidLinks.length || placeholders.length ? "Tinggi" : score >= 80 ? "Rendah" : score >= 60 ? "Sederhana" : "Tinggi";
+    const scoreValue = Math.max(0, Math.min(100, 60 + Math.min(complianceReady.length * 4, 20) - penalty));
+    const risk: Risk = expiredBacked.length
+      ? "Kritikal"
+      : anomalies.length || sheetRefs.length || invalidLinks.length || placeholders.length
+        ? "Tinggi"
+        : scoreValue >= 80
+          ? "Rendah"
+          : scoreValue >= 60
+            ? "Sederhana"
+            : "Tinggi";
 
-    return { company, evidence, core, evidenceBacked, complianceReady, expiredBacked, sheetRefs, invalidLinks, placeholders, pending, anomalies, risk, score };
+    return { company, evidence, classified, core, evidenceBacked, complianceReady, expiredBacked, sheetRefs, invalidLinks, placeholders, pending, anomalies, risk, score: scoreValue };
   }, [cidbRegistrations, mofCodes, selected]);
 
   return (
@@ -458,7 +346,7 @@ export default function CompanyOverviewPage() {
             <Metrics view={view} />
             <Actions view={view} />
             <ComplianceCore view={view} />
-            <EvidenceRows rows={view.evidence} />
+            <EvidenceRows rows={view.classified} />
           </section>
         </div>
       )}
@@ -511,13 +399,13 @@ function RiskBadge({ value }: { value: Risk }) {
   return <span className={`risk ${badgeClass(value)}`}>{value}</span>;
 }
 
-function TruthBadge({ row }: { row: Row | null | undefined }) {
-  const state = truthState(row);
-  return <span className={`badge ${badgeClass(state)}`}>{truthLabels[state]}</span>;
+function TruthBadge({ classified }: { classified: ClassifiedEvidence | null }) {
+  const state = classified?.truthState || "NOT_EVIDENCE_BACKED";
+  return <span className={`badge ${badgeClass(state)}`}>{evidenceTruthStateLabels[state]}</span>;
 }
 
 function EvidenceButton({ row }: { row: Row | null | undefined }) {
-  const url = evidenceUrl(row);
+  const url = getEvidenceUrl(row);
   if (!url) return <span className="badge neutral">Belum ada bukti</span>;
   return <a href={url} target="_blank" rel="noreferrer">Lihat Bukti</a>;
 }
@@ -525,7 +413,7 @@ function EvidenceButton({ row }: { row: Row | null | undefined }) {
 function CompanyHeader({ view }: { view: CompanyView }) {
   const status = overviewStatus(view);
   const company = view.company;
-  const driveUrl = view.evidenceBacked.map(evidenceUrl).find(Boolean) || "";
+  const driveUrl = view.evidenceBacked.map((item) => item.evidenceUrl).find(Boolean) || "";
   return (
     <section className="card">
       <div className="title">
@@ -542,7 +430,7 @@ function CompanyHeader({ view }: { view: CompanyView }) {
         <Field label="Compliance Ready" value={view.complianceReady.length} />
         <Field label="Kemaskini" value={formatDate(company.updated_at || company.company_sheet_last_updated || company.created_at)} />
       </div>
-      <div className="note">Company Overview tidak lagi treat evidence row, raw Sheet, atau Google Sheet reference sebagai compliance truth.</div>
+      <div className="note">Company Overview menggunakan shared evidence classification helper. Evidence row, raw Sheet, dan Google Sheet reference tidak dianggap compliance truth.</div>
       {driveUrl && <div style={{ marginTop: 8 }}><a href={driveUrl} target="_blank" rel="noreferrer">Buka Evidence</a></div>}
     </section>
   );
@@ -557,7 +445,7 @@ function Metric({ label, value, cls = "", note = "" }: { label: string; value: u
 }
 
 function Metrics({ view }: { view: CompanyView }) {
-  const coreReady = view.core.filter((item) => item.row && isComplianceReady(item.row)).length;
+  const coreReady = view.core.filter((item) => item.classified?.isComplianceReady).length;
   return (
     <section className="card">
       <div className="title"><h2>Current Company State</h2><RiskBadge value={view.risk} /></div>
@@ -577,11 +465,11 @@ function Metrics({ view }: { view: CompanyView }) {
 
 function Actions({ view }: { view: CompanyView }) {
   const actions = [
-    ...view.expiredBacked.map((row) => ({ severity: "Kritikal" as Risk, item: evidenceTitle(row), reason: "Evidence-backed tetapi tamat tempoh", row })),
-    ...view.sheetRefs.slice(0, 8).map((row) => ({ severity: "Tinggi" as Risk, item: evidenceTitle(row), reason: "Google Sheet reference bukan Evidence Vault", row })),
-    ...view.invalidLinks.slice(0, 8).map((row) => ({ severity: "Tinggi" as Risk, item: evidenceTitle(row), reason: "Link kosong/tidak sah/bukan Drive file", row })),
-    ...view.placeholders.slice(0, 8).map((row) => ({ severity: "Tinggi" as Risk, item: evidenceTitle(row), reason: "Dummy/test/generated/placeholder", row })),
-    ...view.anomalies.slice(0, 8).map((row) => ({ severity: "Tinggi" as Risk, item: evidenceTitle(row), reason: "Tarikh tidak sah", row })),
+    ...view.expiredBacked.map((item) => ({ severity: "Kritikal" as Risk, item: evidenceTitle(item.row), reason: "Evidence-backed tetapi tamat tempoh", row: item.row })),
+    ...view.sheetRefs.slice(0, 8).map((item) => ({ severity: "Tinggi" as Risk, item: evidenceTitle(item.row), reason: "Google Sheet reference bukan Evidence Vault", row: item.row })),
+    ...view.invalidLinks.slice(0, 8).map((item) => ({ severity: "Tinggi" as Risk, item: evidenceTitle(item.row), reason: "Link kosong/tidak sah/bukan Drive file", row: item.row })),
+    ...view.placeholders.slice(0, 8).map((item) => ({ severity: "Tinggi" as Risk, item: evidenceTitle(item.row), reason: "Dummy/test/generated/placeholder", row: item.row })),
+    ...view.anomalies.slice(0, 8).map((item) => ({ severity: "Tinggi" as Risk, item: evidenceTitle(item.row), reason: "Tarikh tidak sah", row: item.row })),
   ].slice(0, 14);
 
   return (
@@ -603,17 +491,17 @@ function ComplianceCore({ view }: { view: CompanyView }) {
       <div className="tablewrap"><table>
         <thead><tr><th>Item</th><th>Evidence Backing</th><th>Compliance</th><th>No.</th><th>Mula</th><th>Tamat</th><th>Baki</th><th>Bukti</th><th>Risiko</th></tr></thead>
         <tbody>{view.core.map((item) => {
-          const state = complianceState(item.row);
+          const state = item.classified?.complianceState || "NO_EXPIRY";
           return <tr key={item.label}>
             <td><b>{item.label}</b></td>
-            <td><TruthBadge row={item.row} /></td>
-            <td><span className={`badge ${badgeClass(state)}`}>{complianceLabels[state]}</span></td>
+            <td><TruthBadge classified={item.classified} /></td>
+            <td><span className={`badge ${badgeClass(state)}`}>{evidenceComplianceStateLabels[state]}</span></td>
             <td>{item.no || "-"}</td>
             <td>{formatDate(issueValue(item.row))}</td>
-            <td>{formatDate(expiryValue(item.row))}</td>
-            <td>{remainingLabel(expiryValue(item.row))}</td>
+            <td>{formatDate(getExpiryValue(item.row))}</td>
+            <td>{remainingLabel(getExpiryValue(item.row))}</td>
             <td><EvidenceButton row={item.row} /></td>
-            <td><RiskBadge value={riskFromCore(item.row, item.requiresExpiry)} /></td>
+            <td><RiskBadge value={riskFromCore(item)} /></td>
           </tr>;
         })}</tbody>
       </table></div>
@@ -621,21 +509,22 @@ function ComplianceCore({ view }: { view: CompanyView }) {
   );
 }
 
-function EvidenceRows({ rows }: { rows: Row[] }) {
+function EvidenceRows({ rows }: { rows: ClassifiedEvidence[] }) {
   const sorted = [...rows].sort((a, b) => evidenceRank(b) - evidenceRank(a)).slice(0, 60);
   return (
     <section className="card">
       <div className="title"><h2>Evidence Rows Audit View</h2><span className="badge neutral">Top {sorted.length}</span></div>
       <div className="tablewrap"><table>
-        <thead><tr><th>Dokumen</th><th>Truth State</th><th>Link</th><th>Expiry</th><th>Status</th><th>Bukti</th></tr></thead>
-        <tbody>{sorted.map((row, index) => (
-          <tr key={`${txt(row.id)}-${index}`}>
-            <td><b>{evidenceTitle(row)}</b><small>{txt(row.category_code) || txt(row.document_type) || "-"}</small></td>
-            <td><TruthBadge row={row} /></td>
-            <td>{linkValidity(row)}</td>
-            <td>{formatDate(expiryValue(row))}<small>{remainingLabel(expiryValue(row))}</small></td>
-            <td>{statusFromRow(row)}</td>
-            <td><EvidenceButton row={row} /></td>
+        <thead><tr><th>Dokumen</th><th>Truth State</th><th>Link</th><th>Expiry</th><th>Status</th><th>Source</th><th>Bukti</th></tr></thead>
+        <tbody>{sorted.map((item, index) => (
+          <tr key={`${txt(item.row.id)}-${index}`}>
+            <td><b>{evidenceTitle(item.row)}</b><small>{txt(item.row.category_code) || txt(item.row.document_type) || "-"}</small></td>
+            <td><TruthBadge classified={item} /></td>
+            <td>{item.linkValidity}</td>
+            <td>{formatDate(item.expiryValue)}<small>{remainingLabel(item.expiryValue)}</small></td>
+            <td>{statusFromRow(item.row)}</td>
+            <td>{sourceLabel(item.row)}</td>
+            <td><EvidenceButton row={item.row} /></td>
           </tr>
         ))}</tbody>
       </table></div>
