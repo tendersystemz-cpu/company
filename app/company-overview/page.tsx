@@ -129,6 +129,16 @@ function remainingLabel(value: unknown) {
   return `${diffDays} hari`;
 }
 
+function coreExpiryDate(item: CoreItem) {
+  if (!item.requiresExpiry) return "Tidak berkaitan";
+  return formatDate(getExpiryValue(item.row));
+}
+
+function coreRemainingLabel(item: CoreItem) {
+  if (!item.requiresExpiry) return "Tidak berkaitan";
+  return remainingLabel(getExpiryValue(item.row));
+}
+
 function statusFromRow(row: Row | null | undefined) {
   if (!row) return "Not Imported";
   const status = n(row.status || row.evidence_status || row.review_status || row.readiness_status);
@@ -315,9 +325,10 @@ export default function CompanyOverviewPage() {
 
       <section className="toolbar card">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari syarikat / kod / SSM / negeri..." />
-        <span className="badge ok">Syarikat sah: {loading ? "..." : companies.filter(isValidCompany).length}</span>
-        <span className="badge warn">Rekod semakan: {loading ? "..." : companies.length - companies.filter(isValidCompany).length}</span>
+        <span className="badge ok">Syarikat sah sementara: {loading ? "..." : companies.filter(isValidCompany).length}</span>
+        <span className="badge warn">Rekod perlu semakan: {loading ? "..." : companies.length - companies.filter(isValidCompany).length}</span>
       </section>
+      <div className="note">Tapisan Syarikat Sah / Rekod Perlu Semakan masih paparan sementara berdasarkan nama syarikat. Data asal belum dibersihkan dan belum diubah dalam database.</div>
 
       {loading ? (
         <div className="card">Memuat status syarikat...</div>
@@ -326,7 +337,7 @@ export default function CompanyOverviewPage() {
       ) : (
         <div className="layout">
           <aside className="card listPane">
-            <h2>Syarikat</h2>
+            <h2>Syarikat Sah Sementara</h2>
             <div className="list">
               {validRows.map((row) => (
                 <button key={companyKey(row.company)} className={companyKey(row.company) === companyKey(view.company) ? "active" : ""} onClick={() => setSelectedKey(companyKey(row.company))}>
@@ -335,7 +346,7 @@ export default function CompanyOverviewPage() {
                 </button>
               ))}
             </div>
-            <label className="toggle"><input type="checkbox" checked={showSuspected} onChange={(event) => setShowSuspected(event.target.checked)} /> Tunjuk rekod disyaki bukan syarikat</label>
+            <label className="toggle"><input type="checkbox" checked={showSuspected} onChange={(event) => setShowSuspected(event.target.checked)} /> Tunjuk rekod perlu semakan manual</label>
             {showSuspected && suspectedRows.map((row) => (
               <button key={companyKey(row.company)} className="suspect" onClick={() => setSelectedKey(companyKey(row.company))}>{txt(row.company.company_name) || "-"}</button>
             ))}
@@ -428,8 +439,9 @@ function CompanyHeader({ view }: { view: CompanyView }) {
         <Field label="Overview State" value={status} cls={badgeClass(status)} />
         <Field label="Evidence Vault" value={view.evidenceBacked.length ? "Ada Drive evidence" : "Belum evidence-backed"} />
         <Field label="Compliance Ready" value={view.complianceReady.length} />
-        <Field label="Kemaskini" value={formatDate(company.updated_at || company.company_sheet_last_updated || company.created_at)} />
+        <Field label="Kemaskini Data" value={formatDate(company.updated_at || company.company_sheet_last_updated || company.created_at)} />
       </div>
+      <div className="note">Tarikh kemaskini SSM/data syarikat bukan tarikh luput. Kiraan baki hari hanya dipaparkan untuk dokumen yang memang ada expiry seperti CIDB, SPKK, STB, SCORE, MOF, MOF STB dan TCC.</div>
       <div className="note">Company Overview menggunakan shared evidence classification helper. Evidence row, raw Sheet, dan Google Sheet reference tidak dianggap compliance truth.</div>
       {driveUrl && <div style={{ marginTop: 8 }}><a href={driveUrl} target="_blank" rel="noreferrer">Buka Evidence</a></div>}
     </section>
@@ -487,9 +499,10 @@ function Actions({ view }: { view: CompanyView }) {
 function ComplianceCore({ view }: { view: CompanyView }) {
   return (
     <section className="card">
-      <div className="title"><h2>Compliance Core</h2><span className="badge neutral">Evidence-backed + verified + not expired</span></div>
+      <div className="title"><h2>Compliance Core</h2><span className="badge neutral">Evidence-backed + verified + expiry-valid where applicable</span></div>
+      <div className="note">SSM ditunjukkan sebagai rekod korporat tanpa countdown expiry. Countdown hanya digunakan pada sijil/dokumen yang memang tamat tempoh.</div>
       <div className="tablewrap"><table>
-        <thead><tr><th>Item</th><th>Evidence Backing</th><th>Compliance</th><th>No.</th><th>Mula</th><th>Tamat</th><th>Baki</th><th>Bukti</th><th>Risiko</th></tr></thead>
+        <thead><tr><th>Item</th><th>Evidence Backing</th><th>Compliance</th><th>No.</th><th>Mula / Dikemaskini</th><th>Tamat</th><th>Baki</th><th>Bukti</th><th>Risiko</th></tr></thead>
         <tbody>{view.core.map((item) => {
           const state = item.classified?.complianceState || "NO_EXPIRY";
           return <tr key={item.label}>
@@ -498,8 +511,8 @@ function ComplianceCore({ view }: { view: CompanyView }) {
             <td><span className={`badge ${badgeClass(state)}`}>{evidenceComplianceStateLabels[state]}</span></td>
             <td>{item.no || "-"}</td>
             <td>{formatDate(issueValue(item.row))}</td>
-            <td>{formatDate(getExpiryValue(item.row))}</td>
-            <td>{remainingLabel(getExpiryValue(item.row))}</td>
+            <td>{coreExpiryDate(item)}</td>
+            <td>{coreRemainingLabel(item)}</td>
             <td><EvidenceButton row={item.row} /></td>
             <td><RiskBadge value={riskFromCore(item)} /></td>
           </tr>;
@@ -521,7 +534,7 @@ function EvidenceRows({ rows }: { rows: ClassifiedEvidence[] }) {
             <td><b>{evidenceTitle(item.row)}</b><small>{txt(item.row.category_code) || txt(item.row.document_type) || "-"}</small></td>
             <td><TruthBadge classified={item} /></td>
             <td>{item.linkValidity}</td>
-            <td>{formatDate(item.expiryValue)}<small>{remainingLabel(item.expiryValue)}</small></td>
+            <td>{item.expiryValue ? <>{formatDate(item.expiryValue)}<small>{remainingLabel(item.expiryValue)}</small></> : <><span>-</span><small>Tiada expiry direkod</small></>}</td>
             <td>{statusFromRow(item.row)}</td>
             <td>{sourceLabel(item.row)}</td>
             <td><EvidenceButton row={item.row} /></td>
