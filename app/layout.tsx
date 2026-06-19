@@ -10,8 +10,10 @@ export const metadata: Metadata = {
 const navItems = [
   { href: "/", label: "Dashboard", short: "DASH" },
   { href: "/company-overview", label: "Company Overview", short: "CO" },
+  { href: "/infodata/company-mof", label: "InfoData MOF View", short: "INFO" },
+  { href: "/infodata/company-mof-intake", label: "Input Kod MOF", short: "MOF+" },
   { href: "/readiness", label: "Company Action Profile", short: "ACT" },
-  { href: "/company-master-full-import", label: "Import Centre - Data Awal / Staging", short: "IMP" },
+  { href: "/company-master-full-import", label: "Import Centre", short: "IMP" },
   { href: "/drive-vault-import", label: "Drive Mapping", short: "DRV" },
   { href: "/pdf-vault", label: "Document Vault", short: "DOC" },
   { href: "/evidence-verification", label: "Verification Workspace", short: "VER" },
