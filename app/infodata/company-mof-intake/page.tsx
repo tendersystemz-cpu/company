@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import MofSourceDocuments from "./MofSourceDocuments";
 
 type Row = Record<string, unknown>;
 
@@ -163,7 +164,7 @@ export default function CompanyMofIntakePage() {
   const [rawInput, setRawInput] = useState("");
   const [drafts, setDrafts] = useState<DraftMofCode[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
-  const [message, setMessage] = useState("Pilih syarikat dahulu melalui dropdown Selection of Company, kemudian masukkan teks Lampiran A atau manual input.");
+  const [message, setMessage] = useState("Pilih syarikat dahulu melalui dropdown Selection of Company, kemudian semak PDF MOF/STB/Lampiran A dan masukkan kod bidang.");
   const [messageTone, setMessageTone] = useState<"info" | "ok" | "warn">("info");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -214,7 +215,7 @@ export default function CompanyMofIntakePage() {
     setDrafts([]);
     setRawInput("");
     setMessageTone("info");
-    setMessage("Syarikat sudah dipilih. Masukkan teks Lampiran A MOF atau tambah manual row untuk syarikat ini.");
+    setMessage("Syarikat sudah dipilih. Semak PDF lesen MOF/STB/Lampiran A yang dipaparkan, kemudian masukkan kod bidang untuk syarikat ini.");
   }
 
   function parseInput() {
@@ -222,7 +223,7 @@ export default function CompanyMofIntakePage() {
     if (!input) {
       setDrafts([]);
       setMessageTone("warn");
-      setMessage("Belum ada teks sebenar dalam kotak. Tulisan kelabu di dalam kotak hanya contoh placeholder, bukan data yang boleh detect.");
+      setMessage("Belum ada teks sebenar dalam kotak. Salin teks kod bidang dari PDF Lampiran A atau input manual satu baris satu kod.");
       return;
     }
 
@@ -326,11 +327,11 @@ export default function CompanyMofIntakePage() {
     <main className="page">
       <header className="head">
         <div>
-          <div className="currentRoute">ANDA SEDANG BUKA: INFODATA &gt; INPUT KOD MOF</div>
+          <div className="currentRoute">ANDA SEDANG BUKA: INFODATA &gt; INPUT KOD MOF + PDF SUMBER</div>
           <div className="kicker">Percubaan InfoData</div>
           <h1>Input Kod Bidang MOF Syarikat</h1>
           <p>
-            Tujuan page ini: pilih syarikat melalui dropdown, detect semua kod MOF 6 digit, kemudian jadikan setiap kod sebagai InfoData syarikat.
+            Pilih syarikat melalui dropdown. PDF lesen MOF, MOF STB dan Lampiran A akan dipaparkan sekali dalam page ini jika sudah ada dalam evidence database.
           </p>
         </div>
         <div className="headActions">
@@ -341,7 +342,7 @@ export default function CompanyMofIntakePage() {
 
       <nav className="moduleTabs" aria-label="InfoData MOF tabs">
         <a href="/infodata/company-mof">1. Paparan InfoData MOF</a>
-        <span className="activeTab">2. Input Kod MOF — sedang dibuka</span>
+        <span className="activeTab">2. Input Kod MOF + PDF — sedang dibuka</span>
       </nav>
 
       {errors.length > 0 && <div className="notice warn">Sebahagian source belum boleh dibaca: {errors.join(" | ")}</div>}
@@ -375,11 +376,13 @@ export default function CompanyMofIntakePage() {
         </div>
       </section>
 
+      <MofSourceDocuments selectedCompany={selectedCompany} />
+
       <section className="panel inputPanel">
         <div className="stepTitle">
           <div>
-            <h2>Langkah 2 — Masukkan Teks Lampiran A / Manual</h2>
-            <p className="help">Kotak ini mesti ada teks sebenar. Placeholder kelabu bukan input. Selepas tampal teks, klik Baca & Detect Kod.</p>
+            <h2>Langkah 3 — Masukkan Teks Lampiran A / Manual</h2>
+            <p className="help">Buka PDF Lampiran A di atas, salin teks kod bidang, paste di sini. Atau tambah manual row kalau PDF tidak boleh copy.</p>
           </div>
           <button className="secondary" onClick={useSample}>Guna Contoh Test</button>
         </div>
@@ -400,7 +403,7 @@ export default function CompanyMofIntakePage() {
       <section className="panel previewPanel">
         <div className="previewHead">
           <div>
-            <h2>Langkah 3 — Preview Hasil Detect</h2>
+            <h2>Langkah 4 — Preview Hasil Detect</h2>
             <p className="help">Di sini baru nampak hasil detect. Semak, edit keterangan, tick Simpan, kemudian simpan ke InfoData.</p>
           </div>
           <button disabled={saving || !includedCount} onClick={saveDrafts}>{saving ? "Menyimpan..." : `Simpan ${includedCount} Kod`}</button>
