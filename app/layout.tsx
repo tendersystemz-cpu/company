@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 const navItems = [
   { href: "/", label: "Dashboard", short: "DASH" },
   { href: "/company-overview", label: "Company Overview", short: "CO" },
+  { href: "/data-intake", label: "Data Intake Center", short: "IN" },
   { href: "/infodata/company-mof", label: "InfoData MOF View", short: "INFO" },
   { href: "/infodata/company-mof-intake", label: "Input Kod MOF", short: "MOF+" },
   { href: "/readiness", label: "Company Action Profile", short: "ACT" },
