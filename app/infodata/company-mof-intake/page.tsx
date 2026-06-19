@@ -163,7 +163,7 @@ export default function CompanyMofIntakePage() {
   const [rawInput, setRawInput] = useState("");
   const [drafts, setDrafts] = useState<DraftMofCode[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
-  const [message, setMessage] = useState("Ruang paste masih kosong. Masukkan teks Lampiran A atau klik Guna Contoh untuk test parser.");
+  const [message, setMessage] = useState("Pilih syarikat dahulu melalui dropdown Selection of Company, kemudian masukkan teks Lampiran A atau manual input.");
   const [messageTone, setMessageTone] = useState<"info" | "ok" | "warn">("info");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -208,6 +208,14 @@ export default function CompanyMofIntakePage() {
   }, [existingCodes, selectedCompany]);
 
   const existingCodeSet = useMemo(() => new Set(selectedExistingCodes.map((row) => first(row, ["mof_code"]))), [selectedExistingCodes]);
+
+  function handleCompanySelect(value: string) {
+    setSelectedKey(value);
+    setDrafts([]);
+    setRawInput("");
+    setMessageTone("info");
+    setMessage("Syarikat sudah dipilih. Masukkan teks Lampiran A MOF atau tambah manual row untuk syarikat ini.");
+  }
 
   function parseInput() {
     const input = rawInput.trim();
@@ -322,7 +330,7 @@ export default function CompanyMofIntakePage() {
           <div className="kicker">Percubaan InfoData</div>
           <h1>Input Kod Bidang MOF Syarikat</h1>
           <p>
-            Tujuan page ini: ambil teks Lampiran A / input manual, detect semua kod MOF 6 digit, kemudian jadikan setiap kod sebagai InfoData syarikat.
+            Tujuan page ini: pilih syarikat melalui dropdown, detect semua kod MOF 6 digit, kemudian jadikan setiap kod sebagai InfoData syarikat.
           </p>
         </div>
         <div className="headActions">
@@ -346,15 +354,18 @@ export default function CompanyMofIntakePage() {
         <div><span>Akan Disimpan</span><b>{includedCount}</b><small>kod baru sahaja</small></div>
       </section>
 
-      <section className="panel companyPanel">
+      <section className="panel companyPanel selectionPanel">
         <div>
-          <h2>Langkah 1 — Pilih Syarikat</h2>
-          <input value={companySearch} onChange={(event) => setCompanySearch(event.target.value)} placeholder="Cari nama syarikat / SSM / kod sistem..." />
-          <select value={selectedCompany ? companyKey(selectedCompany) : ""} onChange={(event) => setSelectedKey(event.target.value)}>
+          <h2>Langkah 1 — Selection of Company</h2>
+          <label className="fieldLabel">Cari / filter syarikat</label>
+          <input value={companySearch} onChange={(event) => setCompanySearch(event.target.value)} placeholder="Taip nama syarikat / SSM / kod sistem..." />
+          <label className="fieldLabel mainLabel">Selection of Company</label>
+          <select className="companyDropdown" value={selectedCompany ? companyKey(selectedCompany) : ""} onChange={(event) => handleCompanySelect(event.target.value)}>
             {filteredCompanies.map((company) => (
-              <option key={companyKey(company)} value={companyKey(company)}>{first(company, ["company_name"])}</option>
+              <option key={companyKey(company)} value={companyKey(company)}>{first(company, ["company_name"])} — {first(company, ["company_code"], "No Code")}</option>
             ))}
           </select>
+          <div className="selectedHint">Syarikat dipilih: <b>{first(selectedCompany, ["company_name"], "Belum pilih")}</b></div>
         </div>
         <div className="companySheet">
           <Field label="Nama Syarikat" value={first(selectedCompany, ["company_name"], "-")} />
@@ -484,9 +495,14 @@ export default function CompanyMofIntakePage() {
         .metrics span { color: #6b7280; display: block; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .07em; }
         .metrics b { font-size: 30px; display: block; margin-top: 8px; }
         .metrics small { color: #6b7280; }
-        .companyPanel { display: grid; grid-template-columns: 360px 1fr; gap: 16px; margin-bottom: 14px; }
+        .companyPanel { display: grid; grid-template-columns: 420px 1fr; gap: 16px; margin-bottom: 14px; }
+        .selectionPanel { border: 2px solid #c7d2fe; }
+        .fieldLabel { display: block; color: #475569; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .07em; margin: 10px 0 6px; }
+        .fieldLabel.mainLabel { color: #1d4ed8; font-size: 13px; }
         input, select, textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 12px; padding: 10px; font: inherit; background: #fff; color: #111827; }
-        select { margin-top: 10px; }
+        select { margin-top: 0; }
+        .companyDropdown { min-height: 48px; border: 2px solid #1d4ed8; font-size: 14px; font-weight: 900; background: #eff6ff; }
+        .selectedHint { margin-top: 10px; padding: 10px; border-radius: 12px; background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; }
         textarea { min-height: 260px; resize: vertical; }
         .companySheet { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
         .field { border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px; background: #f9fafb; }
