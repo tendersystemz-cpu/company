@@ -16,6 +16,10 @@ type DraftMofCode = {
   sourceText: string;
 };
 
+const sampleLampiranA = `02/03/2025 221001 PERKHIDMATAN / KHIDMAT KEBERSIHAN DAN RAWATAN / PEMBERSIHAN BANGUNAN DAN PEJABAT Aktif
+02/03/2025 221002 PERKHIDMATAN / KHIDMAT KEBERSIHAN DAN RAWATAN / MEMBERSIH KAWASAN Aktif
+05/03/2025 212023 PERKHIDMATAN PENYELENGGARAAN Aktif`;
+
 function text(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -96,7 +100,7 @@ function descriptionFromContext(context: string, code: string) {
   const index = context.indexOf(code);
   if (index >= 0) {
     const afterCode = cleanDescription(context.slice(index + code.length), code);
-    if (afterCode.length >= 6) return afterCode;
+    if (afterCode.length >= 3) return afterCode;
   }
   return cleanDescription(context, code);
 }
@@ -139,32 +143,6 @@ function parsePastedMofCodes(input: string, existingCodes: Set<string>): DraftMo
     });
   });
 
-  if (drafts.length) return drafts;
-
-  input
-    .split(/\r?\n/)
-    .map((line) => normalizeSpace(line))
-    .filter(Boolean)
-    .forEach((line, index) => {
-      const parts = line.split(/[|,;\t]/).map((part) => normalizeSpace(part));
-      const code = parts.find((part) => /^\d{6}$/.test(part)) || text(line.match(/\b\d{6}\b/)?.[0] || "");
-      if (!code || seen.has(code)) return;
-      const date = findDate(line);
-      const status = findStatus(line);
-      const description = parts.filter((part) => part !== code && part !== date && part !== status).join(" ") || descriptionFromContext(line, code);
-      drafts.push({
-        localId: `${code}-manual-${index}`,
-        include: !existingCodes.has(code),
-        duplicate: existingCodes.has(code),
-        code,
-        description,
-        registeredDate: date,
-        status,
-        sourceText: line,
-      });
-      seen.add(code);
-    });
-
   return drafts;
 }
 
@@ -185,7 +163,8 @@ export default function CompanyMofIntakePage() {
   const [rawInput, setRawInput] = useState("");
   const [drafts, setDrafts] = useState<DraftMofCode[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState("Ruang paste masih kosong. Masukkan teks Lampiran A atau klik Guna Contoh untuk test parser.");
+  const [messageTone, setMessageTone] = useState<"info" | "ok" | "warn">("info");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -231,12 +210,33 @@ export default function CompanyMofIntakePage() {
   const existingCodeSet = useMemo(() => new Set(selectedExistingCodes.map((row) => first(row, ["mof_code"]))), [selectedExistingCodes]);
 
   function parseInput() {
-    setMessage("");
-    const parsed = parsePastedMofCodes(rawInput, existingCodeSet);
+    const input = rawInput.trim();
+    if (!input) {
+      setDrafts([]);
+      setMessageTone("warn");
+      setMessage("Belum ada teks sebenar dalam kotak. Tulisan kelabu di dalam kotak hanya contoh placeholder, bukan data yang boleh detect.");
+      return;
+    }
+
+    const parsed = parsePastedMofCodes(input, existingCodeSet);
     setDrafts(parsed);
     if (!parsed.length) {
-      setMessage("Tiada kod MOF enam digit dikesan. Tampal teks Lampiran A atau taip manual satu baris satu kod.");
+      setMessageTone("warn");
+      setMessage("Tiada kod 6 digit dikesan. Tampal teks Lampiran A atau taip manual satu kod satu baris, contoh: 221001 KETERANGAN Aktif.");
+      return;
     }
+
+    const duplicateCount = parsed.filter((draft) => draft.duplicate).length;
+    const newCount = parsed.length - duplicateCount;
+    setMessageTone("ok");
+    setMessage(`Detect berjaya: ${parsed.length} kod dijumpai. ${newCount} kod baru, ${duplicateCount} kod sudah sedia ada.`);
+  }
+
+  function useSample() {
+    setRawInput(sampleLampiranA);
+    setDrafts([]);
+    setMessageTone("info");
+    setMessage("Contoh sudah dimasukkan ke kotak paste. Sekarang klik Baca & Detect Kod.");
   }
 
   function addManualRow() {
@@ -245,6 +245,8 @@ export default function CompanyMofIntakePage() {
       ...current,
       { localId, include: true, duplicate: false, code: "", description: "", registeredDate: "", status: "Aktif", sourceText: "Manual input" },
     ]);
+    setMessageTone("info");
+    setMessage("Manual row ditambah. Isi kod 6 digit dan keterangan sebelum simpan.");
   }
 
   function updateDraft(localId: string, patch: Partial<DraftMofCode>) {
@@ -263,18 +265,21 @@ export default function CompanyMofIntakePage() {
 
   async function saveDrafts() {
     if (!selectedCompany) {
+      setMessageTone("warn");
       setMessage("Pilih syarikat dahulu.");
       return;
     }
 
     const ready = drafts.filter((draft) => draft.include && /^\d{6}$/.test(draft.code) && !draft.duplicate);
     if (!ready.length) {
+      setMessageTone("warn");
       setMessage("Tiada kod baru yang boleh disimpan. Semak checkbox, kod 6 digit, atau duplicate.");
       return;
     }
 
     setSaving(true);
-    setMessage("");
+    setMessageTone("info");
+    setMessage("Sedang simpan kod MOF ke InfoData...");
     const companyId = first(selectedCompany, ["id"], "");
     const payload = ready.map((draft) => ({
       company_id: validUuid(companyId) ? companyId : null,
@@ -294,10 +299,12 @@ export default function CompanyMofIntakePage() {
     setSaving(false);
 
     if (error) {
+      setMessageTone("warn");
       setMessage(`Gagal simpan: ${error.message}`);
       return;
     }
 
+    setMessageTone("ok");
     setMessage(`${payload.length} kod MOF disimpan sebagai InfoData pending review.`);
     setRawInput("");
     setDrafts([]);
@@ -305,15 +312,17 @@ export default function CompanyMofIntakePage() {
   }
 
   const includedCount = drafts.filter((draft) => draft.include && /^\d{6}$/.test(draft.code) && !draft.duplicate).length;
+  const duplicateDraftCount = drafts.filter((draft) => draft.duplicate).length;
 
   return (
     <main className="page">
       <header className="head">
         <div>
-          <div className="kicker">InfoData Intake</div>
-          <h1>MOF Lampiran A → Kod Bidang Syarikat</h1>
+          <div className="currentRoute">ANDA SEDANG BUKA: INFODATA &gt; INPUT KOD MOF</div>
+          <div className="kicker">Percubaan InfoData</div>
+          <h1>Input Kod Bidang MOF Syarikat</h1>
           <p>
-            Tampal teks Lampiran A MOF atau input manual. Sistem pecahkan semua kod bidang menjadi rekod satu-per-satu dalam company_mof_codes.
+            Tujuan page ini: ambil teks Lampiran A / input manual, detect semua kod MOF 6 digit, kemudian jadikan setiap kod sebagai InfoData syarikat.
           </p>
         </div>
         <div className="headActions">
@@ -322,19 +331,24 @@ export default function CompanyMofIntakePage() {
         </div>
       </header>
 
+      <nav className="moduleTabs" aria-label="InfoData MOF tabs">
+        <a href="/infodata/company-mof">1. Paparan InfoData MOF</a>
+        <span className="activeTab">2. Input Kod MOF — sedang dibuka</span>
+      </nav>
+
       {errors.length > 0 && <div className="notice warn">Sebahagian source belum boleh dibaca: {errors.join(" | ")}</div>}
-      {message && <div className="notice">{message}</div>}
+      {message && <div className={`notice ${messageTone}`}>{message}</div>}
 
       <section className="metrics">
         <div><span>Syarikat</span><b>{loading ? "..." : filteredCompanies.length}</b><small>boleh dipilih</small></div>
         <div><span>Kod Sedia Ada</span><b>{loading ? "..." : selectedExistingCodes.length}</b><small>untuk syarikat dipilih</small></div>
-        <div><span>Dikesan / Draft</span><b>{drafts.length}</b><small>dari paste/manual</small></div>
-        <div><span>Akan Disimpan</span><b>{includedCount}</b><small>kod baru bukan duplicate</small></div>
+        <div><span>Dikesan / Draft</span><b>{drafts.length}</b><small>{duplicateDraftCount} duplicate</small></div>
+        <div><span>Akan Disimpan</span><b>{includedCount}</b><small>kod baru sahaja</small></div>
       </section>
 
       <section className="panel companyPanel">
         <div>
-          <h2>1. Pilih Syarikat</h2>
+          <h2>Langkah 1 — Pilih Syarikat</h2>
           <input value={companySearch} onChange={(event) => setCompanySearch(event.target.value)} placeholder="Cari nama syarikat / SSM / kod sistem..." />
           <select value={selectedCompany ? companyKey(selectedCompany) : ""} onChange={(event) => setSelectedKey(event.target.value)}>
             {filteredCompanies.map((company) => (
@@ -350,45 +364,33 @@ export default function CompanyMofIntakePage() {
         </div>
       </section>
 
-      <section className="grid">
-        <div className="panel">
-          <h2>2. Tampal Lampiran A / Input Manual</h2>
-          <p className="help">
-            Tampal teks dari PDF Lampiran A MOF. Parser akan cari semua kod 6 digit. Kalau hasil PDF tidak kemas, edit semula di preview sebelum simpan.
-          </p>
-          <textarea
-            value={rawInput}
-            onChange={(event) => setRawInput(event.target.value)}
-            placeholder={"Contoh:\n02/03/2025 221001 PERKHIDMATAN / KHIDMAT KEBERSIHAN DAN RAWATAN / PEMBERSIHAN BANGUNAN DAN PEJABAT Aktif\n02/03/2025 221002 PERKHIDMATAN / KHIDMAT KEBERSIHAN DAN RAWATAN / MEMBERSIH KAWASAN Aktif"}
-          />
-          <div className="actions">
-            <button onClick={parseInput}>Detect Kod Bidang</button>
-            <button className="secondary" onClick={addManualRow}>Tambah Manual Row</button>
+      <section className="panel inputPanel">
+        <div className="stepTitle">
+          <div>
+            <h2>Langkah 2 — Masukkan Teks Lampiran A / Manual</h2>
+            <p className="help">Kotak ini mesti ada teks sebenar. Placeholder kelabu bukan input. Selepas tampal teks, klik Baca & Detect Kod.</p>
           </div>
+          <button className="secondary" onClick={useSample}>Guna Contoh Test</button>
         </div>
-
-        <div className="panel">
-          <h2>3. Kod MOF Sedia Ada</h2>
-          <div className="existingList">
-            {selectedExistingCodes.length ? (
-              selectedExistingCodes.map((row) => (
-                <div key={`${first(row, ["mof_code"])}-${first(row, ["id"], "")}`}>
-                  <b>{first(row, ["mof_code"])}</b>
-                  <span>{first(row, ["mof_description"], "Tiada keterangan")}</span>
-                </div>
-              ))
-            ) : (
-              <p className="empty">Belum ada kod MOF tersusun untuk syarikat ini.</p>
-            )}
-          </div>
+        <textarea
+          value={rawInput}
+          onChange={(event) => {
+            setRawInput(event.target.value);
+            if (drafts.length) setDrafts([]);
+          }}
+          placeholder={"Tampal teks sebenar di sini. Contoh format:\n02/03/2025 221001 PERKHIDMATAN / KHIDMAT KEBERSIHAN DAN RAWATAN / PEMBERSIHAN BANGUNAN DAN PEJABAT Aktif\n02/03/2025 221002 PERKHIDMATAN / KHIDMAT KEBERSIHAN DAN RAWATAN / MEMBERSIH KAWASAN Aktif"}
+        />
+        <div className="actions">
+          <button className="primaryBig" onClick={parseInput}>Baca & Detect Kod</button>
+          <button className="secondary" onClick={addManualRow}>Tambah Manual Row</button>
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel previewPanel">
         <div className="previewHead">
           <div>
-            <h2>4. Preview InfoData Kod Bidang</h2>
-            <p className="help">Satu baris = satu kod bidang syarikat. Semak, edit dan tick sebelum simpan.</p>
+            <h2>Langkah 3 — Preview Hasil Detect</h2>
+            <p className="help">Di sini baru nampak hasil detect. Semak, edit keterangan, tick Simpan, kemudian simpan ke InfoData.</p>
           </div>
           <button disabled={saving || !includedCount} onClick={saveDrafts}>{saving ? "Menyimpan..." : `Simpan ${includedCount} Kod`}</button>
         </div>
@@ -429,37 +431,54 @@ export default function CompanyMofIntakePage() {
                         <option value="Batal">Batal</option>
                       </select>
                     </td>
-                    <td>{draft.duplicate ? <span className="tag warn">Duplicate</span> : <span className="tag ok">Baru</span>}</td>
+                    <td>{draft.duplicate ? <span className="tag warn">Sudah ada</span> : <span className="tag ok">Kod baru</span>}</td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan={6} className="empty">Belum ada preview. Tampal Lampiran A atau tambah manual row.</td></tr>
+                <tr><td colSpan={6} className="empty">Belum ada preview. Masukkan teks sebenar dan klik Baca & Detect Kod, atau tambah manual row.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
 
-      <section className="panel note">
-        <h2>Prinsip Modul Ini</h2>
-        <p>
-          Fokus modul ini ialah melengkapkan InfoData syarikat. PDF Lampiran A, Google Sheet atau manual input hanya sumber. Hasil akhirnya ialah inventory kod bidang MOF yang boleh dicari, disusun dan dipadankan dengan tender.
-        </p>
+      <section className="panel existingPanel">
+        <h2>Rujukan — Kod MOF Yang Sudah Ada Untuk Syarikat Ini</h2>
+        <p className="help">Bahagian ini bukan hasil detect. Ini data yang sudah tersimpan dalam database untuk elak duplicate.</p>
+        <div className="existingList">
+          {selectedExistingCodes.length ? (
+            selectedExistingCodes.map((row) => (
+              <div key={`${first(row, ["mof_code"])}-${first(row, ["id"], "")}`}>
+                <b>{first(row, ["mof_code"])}</b>
+                <span>{first(row, ["mof_description"], "Tiada keterangan")}</span>
+              </div>
+            ))
+          ) : (
+            <p className="empty">Belum ada kod MOF tersusun untuk syarikat ini.</p>
+          )}
+        </div>
       </section>
 
       <style jsx>{`
         .page { min-height: 100vh; background: #f6f7fb; color: #111827; padding: 28px; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-        .head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
-        .kicker { color: #7c3aed; font-size: 12px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+        .head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 12px; }
+        .currentRoute { display: inline-flex; background: #facc15; color: #111827; border: 2px solid #111827; border-radius: 999px; padding: 6px 10px; font-size: 11px; font-weight: 950; letter-spacing: .04em; }
+        .kicker { color: #7c3aed; font-size: 12px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; margin-top: 10px; }
         h1 { margin: 6px 0 8px; font-size: 32px; letter-spacing: -0.04em; }
-        h2 { margin: 0 0 10px; font-size: 16px; }
+        h2 { margin: 0 0 8px; font-size: 16px; }
         p { margin: 0; color: #4b5563; line-height: 1.5; }
-        .headActions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+        .headActions, .actions, .previewHead, .stepTitle { display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
         a, button { border: 0; border-radius: 12px; padding: 10px 13px; background: #111827; color: #fff; font-weight: 800; text-decoration: none; cursor: pointer; }
         button:disabled { opacity: .45; cursor: not-allowed; }
         button.secondary { background: #e0e7ff; color: #312e81; }
-        .notice { margin: 12px 0; padding: 12px 14px; border-radius: 14px; background: #ecfeff; color: #155e75; border: 1px solid #a5f3fc; }
+        button.primaryBig { min-height: 44px; padding: 0 18px; font-size: 14px; background: #020617; }
+        .moduleTabs { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+        .moduleTabs a, .moduleTabs span { border-radius: 999px; padding: 8px 12px; font-weight: 900; border: 1px solid #cbd5e1; background: #fff; color: #334155; }
+        .moduleTabs .activeTab { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+        .notice { margin: 12px 0; padding: 12px 14px; border-radius: 14px; border: 1px solid #a5f3fc; background: #ecfeff; color: #155e75; font-weight: 800; }
+        .notice.ok { background: #dcfce7; color: #166534; border-color: #86efac; }
         .notice.warn { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+        .notice.info { background: #ecfeff; color: #155e75; border-color: #a5f3fc; }
         .metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 14px; }
         .metrics div, .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 16px; box-shadow: 0 10px 25px rgba(15,23,42,.05); }
         .metrics span { color: #6b7280; display: block; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .07em; }
@@ -473,12 +492,8 @@ export default function CompanyMofIntakePage() {
         .field { border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px; background: #f9fafb; }
         .field span { display: block; color: #6b7280; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px; }
         .field b { word-break: break-word; }
-        .grid { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(340px,.8fr); gap: 14px; margin-bottom: 14px; }
+        .inputPanel, .previewPanel, .existingPanel { margin-bottom: 14px; }
         .help { margin-bottom: 12px; font-size: 13px; }
-        .actions, .previewHead { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-top: 12px; }
-        .existingList { display: grid; gap: 8px; max-height: 340px; overflow: auto; }
-        .existingList div { display: grid; gap: 4px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; }
-        .existingList span { color: #4b5563; font-size: 13px; }
         .tableWrap { overflow: auto; border: 1px solid #e5e7eb; border-radius: 14px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
@@ -492,9 +507,11 @@ export default function CompanyMofIntakePage() {
         .tag.ok { background: #dcfce7; color: #166534; }
         .tag.warn { background: #fef3c7; color: #92400e; }
         .empty { color: #6b7280; text-align: center; padding: 20px; }
-        .note { margin-top: 14px; }
+        .existingList { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; max-height: 280px; overflow: auto; }
+        .existingList div { display: grid; gap: 4px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; background: #f9fafb; }
+        .existingList span { color: #4b5563; font-size: 13px; }
         @media (max-width: 980px) {
-          .head, .companyPanel, .grid { grid-template-columns: 1fr; display: grid; }
+          .head, .companyPanel { grid-template-columns: 1fr; display: grid; }
           .metrics, .companySheet { grid-template-columns: 1fr 1fr; }
         }
       `}</style>
