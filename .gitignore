@@ -1,8 +1,90 @@
-﻿node_modules
-.next
-.env.local
-.env*.local
-.vercel
-out
-dist
+﻿# =========================================================
+# Tender Readiness System - Git Ignore
+# =========================================================
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+dist/
+build/
+
+# Production / runtime
+.vercel/
+.netlify/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 *.log
+
+# Environment / secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Supabase local temp files
+.supabase/
+supabase/.branches/
+supabase/.temp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# TypeScript / cache
+*.tsbuildinfo
+.next/cache/
+
+# Testing / coverage
+coverage/
+playwright-report/
+test-results/
+
+# =========================================================
+# Sensitive tender / company import data
+# Jangan push data syarikat, CSV, Excel, bukti tender ke GitHub
+# =========================================================
+
+data-imports/
+clean_import_outputs/
+
+*.xlsx
+*.xls
+*.csv
+
+# Jika kemudian ada sample/template CSV yang memang mahu commit,
+# letak dalam folder public/templates dan uncomment baris bawah:
+# !public/templates/*.csv
+
+# PDFs / scanned evidence / tender documents
+*.pdf
+
+# Local notes / temporary exports
+*.tmp
+*.bak
+*.backup
+*.zip
+*.7z
+*.rar
+
+# Local generated reports
+*_ready.xlsx
+*_ready.csv
+*_review_hold.csv
+*_action_notes.csv
+*_data_ready.xlsx
+*_data_ready.csv
