@@ -1,0 +1,29 @@
+{
+  "generated_at": "2026-07-08T00:00:00+08:00",
+  "tender_case_id": "RTB_SG_TAWAU_P4",
+  "agent": "Company Profile Agent",
+  "output_type": "company_profile_register",
+  "status": "INITIAL_EXTRACT_FROM_CIDB_SUMMARY",
+  "source_ref": "SRC-005",
+  "companies": [
+    { "company_name": "ABAD KENANGA SDN BHD", "source_owner": "RIZAKI", "cidb_no": "0120130327-SL149342", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 3 },
+    { "company_name": "ADWA REALTY SDN BHD", "source_owner": "RIZAKI", "cidb_no": "0120200528-SL047010", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 4 },
+    { "company_name": "AJUDAN SETIA SDN BHD", "source_owner": "AZAM", "cidb_no": "0120200705-SL049319", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 5 },
+    { "company_name": "AKANG KASEP SDN BHD", "source_owner": "POKNIK", "cidb_no": "MISSING_IN_EXTRACT", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 6 },
+    { "company_name": "AKRAB SERASI SDN BHD", "source_owner": "RIZAKI", "cidb_no": "0120200624-SL048220", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 7 },
+    { "company_name": "AMBANG TERBILANG SDN BHD", "source_owner": "YUSRI", "cidb_no": "0120091421-PK123137", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 8 },
+    { "company_name": "ANGKA BERNAS SDN BHD", "source_owner": "BOB", "cidb_no": "0120130611-WP150695", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 9 },
+    { "company_name": "ANJALAN JAYA SDN BHD", "source_owner": "BOB", "cidb_no": "1960314-NS000640", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 10 },
+    { "company_name": "ANTENA SENSASI SDN BHD", "source_owner": "AZAM", "cidb_no": "0120130529-WP150495", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 11 },
+    { "company_name": "ARMADA KASIH SDN BHD", "source_owner": "YUSRI", "cidb_no": "0120200528-SL047018", "grade_status": "G6", "address_source": "CIDB-SUMMARY", "source_row": 12 },
+    { "company_name": "ARMADA KIDAL (M) SDN BHD", "source_owner": "AZAM", "cidb_no": "0120151004-TR166210", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 13 },
+    { "company_name": "ARUS LAKSANA SDN BHD", "source_owner": "AZRA", "cidb_no": "0120020730-WP073300", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 14 },
+    { "company_name": "STRIVE EXCELLENCE SDN BHD", "source_owner": "YUSRI", "cidb_no": "0120100217-WP127971", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 111 },
+    { "company_name": "TEERAZ NIAGA SDN BHD", "source_owner": "AZAM", "cidb_no": "0120130320-SL149198", "grade_status": "G7", "address_source": "CIDB-SUMMARY", "source_row": 113 }
+  ],
+  "notes": [
+    "This is an initial company register extracted from available CIDB-SUMMARY snippets.",
+    "Final company profile requires full company master extraction and SSM/company profile evidence.",
+    "G6 company is retained but will be blocked later for G7 tender if requirement is confirmed."
+  ]
+}
