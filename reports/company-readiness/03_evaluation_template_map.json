@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-07-08T00:00:00+08:00",
+  "tender_case_id": "RTB_SG_TAWAU_P4",
+  "agent": "Evaluation Template Agent",
+  "output_type": "evaluation_template_map",
+  "source_ref": "SRC-002",
+  "status": "PENDING_SOURCE_EXTRACTION",
+  "rule": "Evaluation template controls mandatory compliance and company scoring. Commercial analysis is a support branch only.",
+  "forms": [
+    { "form_id": "FORM_1", "name": "Tender Completeness Analysis", "owner_agent": "Mandatory Compliance Agent", "expected_output": "mandatory_completeness_checks" },
+    { "form_id": "FORM_5", "name": "First Stage Evaluation Result", "owner_agent": "Mandatory Compliance Agent", "expected_output": "mandatory_pass_fail_register" },
+    { "form_id": "FORM_7", "name": "Current Workload", "owner_agent": "Financial Audit Agent", "expected_output": "current_workload_register" },
+    { "form_id": "FORM_8", "name": "Financial Capacity", "owner_agent": "Financial Audit Agent", "expected_output": "financial_capacity_audit" },
+    { "form_id": "FORM_9", "name": "Work Experience", "owner_agent": "Experience Matching Agent", "expected_output": "experience_match_matrix" },
+    { "form_id": "FORM_10", "name": "Technical Staff", "owner_agent": "Technical Capability Agent", "expected_output": "technical_capability_matrix" },
+    { "form_id": "FORM_11", "name": "Company Capability Score", "owner_agent": "Company Scoring Agent", "expected_output": "company_scoring_table" }
+  ]
+}
