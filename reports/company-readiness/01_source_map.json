@@ -1,0 +1,123 @@
+{
+  "generated_at": "2026-07-08T00:00:00+08:00",
+  "tender_case_id": "RTB_SG_TAWAU_P4",
+  "active_cycle": "COMPANY_READINESS_FIRST",
+  "rule": "NO_SOURCE_MAP_NO_OUTPUT",
+  "system_priority": "Company compliance, readiness, scoring and selection before commercial cut-off.",
+  "source_authority_order": [
+    { "level": 1, "source_type": "OFFICIAL_TENDER_DOCUMENT", "rule": "Official tender advertisement / tender document / addendum overrides internal notes." },
+    { "level": 2, "source_type": "APPROVED_EVALUATION_TEMPLATE", "rule": "Approved evaluation template overrides ad-hoc checklist." },
+    { "level": 3, "source_type": "COMPANY_MASTER", "rule": "Company master / SSM / approved profile controls company identity." },
+    { "level": 4, "source_type": "LICENSE_EVIDENCE", "rule": "Latest valid certificate overrides older certificate." },
+    { "level": 5, "source_type": "FINANCIAL_EVIDENCE", "rule": "Audited account and bank/facility evidence override manual estimates." },
+    { "level": 6, "source_type": "EXPERIENCE_EVIDENCE", "rule": "LOA/SST/CPC/project evidence controls experience matching." },
+    { "level": 7, "source_type": "TECHNICAL_EVIDENCE", "rule": "Technical staff/equipment/capability evidence controls technical scoring." },
+    { "level": 8, "source_type": "COMMERCIAL_EVIDENCE", "rule": "BOQ/cut-off/comparison supports commercial analysis only after compliance context." },
+    { "level": 9, "source_type": "OPERATING_POLICY", "rule": "GitHub docs are policy, not tender evidence." }
+  ],
+  "sources": [
+    {
+      "source_ref": "SRC-001",
+      "id": "TENDER_AD_MYPROCUREMENT_RTB_SG_TAWAU_P4",
+      "title": "MyProcurement tender advertisement - RTB Sg Tawau Pakej 4",
+      "source_type": "OFFICIAL_TENDER_DOCUMENT",
+      "authority_level": 1,
+      "url": "https://myprocurement.treasury.gov.my/advertisements/tender/7f915fc4026752809f593213520c1825",
+      "status": "REFERENCE_ONLY",
+      "used_by_agents": ["Tender Requirement Agent", "Mandatory Compliance Agent"],
+      "required_for": ["tender_requirement_matrix", "mandatory_compliance"]
+    },
+    {
+      "source_ref": "SRC-002",
+      "id": "EVAL_ANALISA_KESEMPURNAAN_TENDER",
+      "title": "ANALISA KESEMPURNAAN DAN KEPATUHAN TENDER",
+      "source_type": "APPROVED_EVALUATION_TEMPLATE",
+      "authority_level": 2,
+      "url": "https://docs.google.com/spreadsheets/d/1FZbNkFpDbncfAZ4ZHjHcAFV8qv3Gj_vQVWURQYB-hQ0",
+      "status": "REFERENCE_ONLY",
+      "used_by_agents": ["Evaluation Template Agent", "Mandatory Compliance Agent", "Financial Audit Agent", "Experience Matching Agent", "Technical Capability Agent", "Company Scoring Agent"],
+      "required_for": ["evaluation_template_map", "company_eligibility_matrix", "financial_capacity_audit", "company_scoring_table"]
+    },
+    {
+      "source_ref": "SRC-003",
+      "id": "DATA_MASTER_UPDATED",
+      "title": "Company master data",
+      "source_type": "COMPANY_MASTER",
+      "authority_level": 3,
+      "url": "https://docs.google.com/spreadsheets/d/1e7KJPErrFYH3xrIMJEhD8SDbRFzZBx9MzqCtI1ROO-s",
+      "status": "REFERENCE_ONLY",
+      "used_by_agents": ["Company Profile Agent", "Mandatory Compliance Agent"],
+      "required_for": ["company_profile_register", "company_eligibility_matrix"]
+    },
+    {
+      "source_ref": "SRC-004",
+      "id": "LICENSE_COMPANY_FOLDER",
+      "title": "LESEN SYARIKAT folder",
+      "source_type": "LICENSE_EVIDENCE",
+      "authority_level": 4,
+      "url": "https://drive.google.com/drive/folders/1LCLpfkaOY8fDo6SUuizJMJ2a50VGj54y",
+      "status": "REFERENCE_ONLY",
+      "used_by_agents": ["License Compliance Agent", "Mandatory Compliance Agent"],
+      "required_for": ["license_compliance_matrix", "mandatory_compliance"]
+    },
+    {
+      "source_ref": "SRC-005",
+      "id": "SUMMARY_LESEN_CIDB_SYARIKAT",
+      "title": "SUMMARY LESEN CIDB SYARIKAT / UP 16.06.2026.xlsx",
+      "source_type": "LICENSE_EVIDENCE",
+      "authority_level": 4,
+      "url": "https://docs.google.com/spreadsheets/d/1UgnPglfUSUOen2O5Kwa7u09mJci1rPp7/edit",
+      "status": "REFERENCE_ONLY",
+      "used_by_agents": ["License Compliance Agent"],
+      "required_for": ["license_compliance_matrix"]
+    },
+    {
+      "source_ref": "SRC-006",
+      "id": "BANK_STATEMENT_FOLDER",
+      "title": "BANK STATEMENT folder",
+      "source_type": "FINANCIAL_EVIDENCE",
+      "authority_level": 5,
+      "url": "https://drive.google.com/drive/folders/1n56wSHcqjwaMRFnWL1iv7T4U82wBcmJ6",
+      "status": "REFERENCE_ONLY",
+      "used_by_agents": ["Financial Audit Agent"],
+      "required_for": ["financial_capacity_audit"]
+    },
+    {
+      "source_ref": "SRC-007",
+      "id": "COMMERCIAL_CUTOFF_SG_TAWAU",
+      "title": "CUT OFF SG TAWAU.xlsx",
+      "source_type": "COMMERCIAL_EVIDENCE",
+      "authority_level": 8,
+      "url": "https://docs.google.com/spreadsheets/d/1wdTcP1l0xFC2hRWF8SAA3TszVX4FcRYT",
+      "status": "REFERENCE_ONLY",
+      "used_by_agents": ["Commercial Agent"],
+      "required_for": ["commercial_cutoff_branch_only"]
+    },
+    {
+      "source_ref": "SRC-008",
+      "id": "COMMERCIAL_BOQ_FOLDER_RTB_SG_TAWAU",
+      "title": "RTB SG TAWAU BOQ / price folder",
+      "source_type": "COMMERCIAL_EVIDENCE",
+      "authority_level": 8,
+      "url": "https://drive.google.com/drive/folders/1QqdRDgZHAzM13jsWw3okq4WGjBMIiAKK",
+      "status": "REFERENCE_ONLY",
+      "used_by_agents": ["Commercial Agent"],
+      "required_for": ["commercial_cutoff_branch_only"]
+    }
+  ],
+  "source_status_summary": {
+    "total": 8,
+    "reference_only": 8,
+    "available_local": 0,
+    "missing": 0,
+    "final_decision_status": "BLOCKED_UNTIL_EVIDENCE_EXTRACTED_AND_VERIFIED"
+  },
+  "conflict_rules": [
+    "Official tender document overrides internal notes.",
+    "Approved evaluation template overrides ad-hoc checklist.",
+    "Latest valid certificate overrides older certificate.",
+    "Audited account overrides manual financial estimate.",
+    "Missing evidence must be marked MISSING_SOURCE, not guessed.",
+    "Commercial data must not override mandatory compliance failure."
+  ]
+}
