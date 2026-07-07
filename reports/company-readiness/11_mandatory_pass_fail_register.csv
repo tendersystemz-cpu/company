@@ -1,0 +1,9 @@
+company_name,tender_case_id,mandatory_gate,preliminary_status,reason,source_ref,next_action
+ABAD KENANGA SDN BHD,RTB_SG_TAWAU_P4,G7_CE_STB_EVIDENCE,HOLD,"License summary indicates potential pass but certificate/evidence pack not verified.",SRC-005,"Fetch certificate copies and check financial/experience/technical evidence."
+ADWA REALTY SDN BHD,RTB_SG_TAWAU_P4,G7_CE_STB_EVIDENCE,HOLD,"License summary indicates potential pass but certificate/evidence pack not verified.",SRC-005,"Fetch certificate copies and check financial/experience/technical evidence."
+AJUDAN SETIA SDN BHD,RTB_SG_TAWAU_P4,G7_CE_STB_EVIDENCE,HOLD,"License summary indicates potential pass but certificate/evidence pack not verified.",SRC-005,"Fetch certificate copies and check financial/experience/technical evidence."
+AKANG KASEP SDN BHD,RTB_SG_TAWAU_P4,G7_CE_STB_EVIDENCE,HOLD,"License detail incomplete in extracted register.",SRC-005,"Locate CIDB/PPK/SPKK/STB certificate or mark fail if unavailable."
+AKRAB SERASI SDN BHD,RTB_SG_TAWAU_P4,G7_CE_STB_EVIDENCE,HOLD,"STB status requires latest certificate verification.",SRC-005,"Verify current STB. If expired, reject mandatory for Bumiputera/STB tender."
+ARMADA KASIH SDN BHD,RTB_SG_TAWAU_P4,G7_CE_STB_EVIDENCE,FAIL_IF_G7_CONFIRMED,"Extracted grade is G6, below confirmed/expected G7 gate.",SRC-005,"Do not send to price decision unless G7 evidence is corrected by latest certificate."
+STRIVE EXCELLENCE SDN BHD,RTB_SG_TAWAU_P4,G7_CE_STB_EVIDENCE,HOLD,"License summary indicates potential pass but readiness still incomplete.",SRC-005,"Fetch certificate copies, audit/finance, LOA/SST/CPC and technical evidence before recommendation."
+TEERAZ NIAGA SDN BHD,RTB_SG_TAWAU_P4,G7_CE_STB_EVIDENCE,HOLD,"License summary indicates potential pass but certificate/evidence pack not verified.",SRC-005,"Fetch certificate copies and check financial/experience/technical evidence."
