@@ -1,0 +1,13 @@
+folder_role,folder_name,drive_folder_id,drive_url,parent_folder_id,status
+CONTROL,00_AI_INDEXING_CONTROL,1hIJmpa6YXLRGyfy-9LpotrYAT42aNK78,https://drive.google.com/drive/folders/1hIJmpa6YXLRGyfy-9LpotrYAT42aNK78,1Q9nIZ_PMm1SkRHP8UChZc-uMrZXLA5O7,CREATED
+STAGING_ROOT,01_COMPANY_FILES_SORTED_STAGING,1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,https://drive.google.com/drive/folders/1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,1Q9nIZ_PMm1SkRHP8UChZc-uMrZXLA5O7,CREATED
+REVIEW,99_UNSORTED_REVIEW,1c8KmO41M-k_p9rirR6cJMm5RtLk7uGaN,https://drive.google.com/drive/folders/1c8KmO41M-k_p9rirR6cJMm5RtLk7uGaN,1Q9nIZ_PMm1SkRHP8UChZc-uMrZXLA5O7,CREATED
+COMPANY,AKRAB SERASI SDN BHD,140fxvi8rZgeE_n_LYEMQXbOXESzW_RJg,https://drive.google.com/drive/folders/140fxvi8rZgeE_n_LYEMQXbOXESzW_RJg,1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,CREATED
+COMPANY,KENANGA LESTARI SDN BHD,1jqRzhXit56-3wZYmmFBtYb1TRjOf04cM,https://drive.google.com/drive/folders/1jqRzhXit56-3wZYmmFBtYb1TRjOf04cM,1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,CREATED
+COMPANY,LUBUK PERMATA SDN BHD,1RxVkMQGrwOLNXc0JNjygCogz5fY-0s7l,https://drive.google.com/drive/folders/1RxVkMQGrwOLNXc0JNjygCogz5fY-0s7l,1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,CREATED
+COMPANY,RMS BINA JAYA SDN BHD,1wsK-ai0JoCB5jqv5FGR_iotgb2Kvm7nr,https://drive.google.com/drive/folders/1wsK-ai0JoCB5jqv5FGR_iotgb2Kvm7nr,1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,CREATED
+COMPANY,SMART MASTERPIECE SDN BHD,1E7bodco9J3hYjS7iqXsKcBA7HqIEqhf6,https://drive.google.com/drive/folders/1E7bodco9J3hYjS7iqXsKcBA7HqIEqhf6,1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,CREATED
+COMPANY,LF LEGACY SDN BHD,1ih6giuxQw2IYQC8zijQjy7VudfZOqs22,https://drive.google.com/drive/folders/1ih6giuxQw2IYQC8zijQjy7VudfZOqs22,1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,CREATED
+COMPANY,KILAUAN SUTERA SDN BHD,1hATWOEOlyFUK8QPPetOOVk8RKO4HRGi0,https://drive.google.com/drive/folders/1hATWOEOlyFUK8QPPetOOVk8RKO4HRGi0,1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,CREATED
+COMPANY,BESTARI ANGGUN SDN BHD,1Q_VRcA3TLKL2iKD39S3OFTaB-NZFdThJ,https://drive.google.com/drive/folders/1Q_VRcA3TLKL2iKD39S3OFTaB-NZFdThJ,1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,CREATED
+COMPANY,IMZ VICTORY,1Yfn60ea-8UNIM_e1EhlKL803b82qPE6o,https://drive.google.com/drive/folders/1Yfn60ea-8UNIM_e1EhlKL803b82qPE6o,1fZFVN9nilLEsVlYUcmPTOd6JLPx75hAi,CREATED
