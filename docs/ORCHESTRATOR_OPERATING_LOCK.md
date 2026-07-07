@@ -3,173 +3,119 @@
 Status: ACTIVE OPERATING CONTEXT
 Purpose: prevent loss of direction and stop module-building without operational output.
 
-## 1. Real Objective
+## 1. Corrected Real Objective
 
-This project is not only an AI chatbot, dashboard, or script collection.
+The main purpose of this system is not cut-off analysis, dashboards, or a chatbot.
 
-The real system is a Tender Readiness & Company Intelligence System that supports tender operations across multiple business segments:
+The main purpose is:
+
+**to prepare and select the correct company for a tender by evaluating whether the company complies, scores, and can realistically proceed.**
+
+Commercial cut-off and price breakdown are important outputs, but they are only one branch under the wider tender evaluation and company readiness system.
+
+The full system is a Tender Readiness & Company Intelligence System covering:
 
 1. Company information
 2. Company licenses and registrations
-3. Company finance and banking evidence
+3. Company financial strength and banking evidence
 4. Company work experience and project evidence
 5. Technical capability, personnel, plant, equipment, SCORE/CCD where applicable
 6. Tender intake and mandatory requirement extraction
-7. Company selection and eligibility matching
-8. Commercial analysis, pricing, BOQ, cut-off, and abnormal price detection
-9. Evidence pack and document control
-10. Submission readiness
-11. Management decision: GO / HOLD / NO-GO
-12. AI agent operations that generate usable outputs, not only answer questions
+7. Company compliance and eligibility matching
+8. Company scoring / ranking / suitability assessment
+9. Commercial analysis, pricing, BOQ, cut-off, and abnormal price detection
+10. Evidence pack and document control
+11. Submission readiness
+12. Management decision: GO / HOLD / NO-GO
+13. AI agent operations that generate usable outputs, not only answer questions
 
-## 2. Non-Negotiable Rule
+## 2. Master Evaluation Logic
+
+The system must follow the real tender evaluation order:
+
+### Gate 1: Tender Intake
+Extract the tender requirements first:
+- tender title
+- agency
+- closing date
+- category
+- mandatory licenses / codes / grades
+- mandatory documents
+- briefing / site visit requirements
+- financial requirements
+- technical requirements
+- commercial / pricing requirements
+- scoring criteria if available
+
+### Gate 2: Mandatory Compliance / First Stage Evaluation
+This decides whether a company can be considered at all.
+
+Examples:
+- company registration complete
+- license / kod bidang / gred matches tender
+- mandatory documents complete
+- forms signed / stamped where required
+- attendance requirements satisfied where applicable
+- no fatal defect in tender documents
+
+If a company fails a mandatory requirement, it should not be pushed into later scoring unless the process specifically allows correction.
+
+### Gate 3: Company Capability Scoring / Second Stage Evaluation
+For companies that pass mandatory compliance, evaluate capability:
+- financial capacity
+- work experience
+- technical staff
+- plant / machinery / equipment
+- current work performance
+- SCORE/CCD or other technical ratings where relevant
+
+### Gate 4: Commercial Evaluation
+Only after company eligibility/capability context is known, evaluate price:
+- tender price
+- BOQ / price breakdown
+- cut-off
+- abnormal pricing
+- comparison against AJ
+- commercial risk
+
+Commercial analysis can also run in parallel as an output branch, but it is not the main company readiness decision by itself.
+
+### Gate 5: Evidence Pack and Submission Readiness
+Prepare the documents to support the selected company:
+- company profile
+- licenses
+- financial evidence
+- experience evidence
+- technical evidence
+- pricing/commercial evidence
+- forms/signatures/stamping
+
+### Gate 6: Management Decision
+Generate:
+- recommended company
+- backup company
+- rejected companies
+- reason for decision
+- blocker list
+- GO / HOLD / NO-GO
+
+## 3. Non-Negotiable Rule Before Any Module
 
 Before building or modifying any module, the orchestrator must answer:
 
 1. Which system segment is this task under?
 2. What is the active work cycle?
-3. What input is available?
-4. What real output must be generated?
-5. Which agent or worker should execute it?
-6. Who will use the output?
+3. Is this a company readiness task, commercial branch task, evidence task, or submission task?
+4. What input is available?
+5. What real output must be generated?
+6. Which agent or worker should execute it?
+7. Who will use the output?
 
 If these questions are not answered, do not build a new module.
 
-## 3. Current Active Cycle
+## 4. System-Wide Segments
 
-Active tender case:
-RTB_SG_TAWAU_P4
-
-Tender:
-Rancangan Tebatan Banjir Sg. Tawau, Lembangan Sungai Tawau, Tawau, Sabah (Fasa 1A) – Pakej 4
-Pembinaan Baru Jambatan Jalan Apas serta kerja-kerja berkaitan.
-
-Active segment:
-Commercial Analysis
-
-Active cycle:
-Cut-off analysis + pecahan harga setiap syarikat.
-
-Out of scope for this cycle:
-- company eligibility
-- CIDB / SPKK / STB / PUKONSA validation
-- attendance / taklimat / lawatan tapak
-- submission readiness
-- can_submit
-
-These are separate cycles and must not block the commercial cut-off cycle.
-
-## 4. Current Cycle Objective
-
-Generate a practical commercial workpack that helps PIC / QS / commercial team / management:
-
-1. Read master cut-off data
-2. Read all company tender prices
-3. Match company names with BOQ or comparison files
-4. Break down each company price by grand summary / bill / major item
-5. Compare tender price against cut-off
-6. Flag abnormal pricing, missing files, mismatches, or review items
-7. Skip optional data that is unavailable
-8. Produce QS review list and management commercial summary
-
-## 5. Skip / Block Rules
-
-### Skip only; do not block tender cycle
-
-- SV list is missing
-- company is not found in SV list
-- company name mismatch but price/BOQ exists
-- company folder missing but price exists
-- company license documents missing
-- CIDB / SPKK / STB / PUKONSA not checked
-- taklimat / lawatan tapak not checked
-
-Status labels:
-- SKIP_NO_SV_LIST
-- SKIP_NOT_IN_SV_LIST
-- NAME_MATCH_REVIEW
-- OPTIONAL_DATA_MISSING
-
-### Block company only
-
-- company BOQ cannot be opened
-- company grand summary missing
-- company tender price missing
-- company total does not tally
-
-Status labels:
-- COMPANY_BLOCKED_MISSING_BOQ
-- COMPANY_BLOCKED_MISSING_PRICE
-- COMPANY_BLOCKED_TOTAL_MISMATCH
-
-### Block whole commercial cycle only
-
-- master cut-off file cannot be read
-- AJ missing
-- PCP / provisional sum missing where required
-- Builder's Works value missing
-- cut-off value missing
-- formula/value cannot be validated at all
-
-Status labels:
-- CYCLE_BLOCKED_MISSING_MASTER_CUTOFF
-- CYCLE_BLOCKED_MISSING_CORE_VALUE
-
-## 6. Required Commercial Cut-Off Outputs
-
-The current cycle is not complete until these files are generated or intentionally marked not available:
-
-reports/commercial-cutoff/
-
-1. 01_master_cutoff_summary.json
-2. 02_company_price_register.csv
-3. 03_company_file_match_register.csv
-4. 04_company_price_breakdown.csv
-5. 05_cutoff_position_table.csv
-6. 06_abnormal_price_register.csv
-7. 07_skipped_missing_company.csv
-8. 08_qs_review_list.md
-9. 09_management_commercial_summary.md
-10. 10_commercial_cutoff_workpack.html
-11. 11_commercial_cutoff_workpack.xlsx
-
-## 7. Agent Roles for the Current Cycle
-
-1. Intake Agent
-   - identify tender case, source files, cut-off sheet, comparison sheet, BOQ files
-
-2. Cut-Off Extraction Agent
-   - extract AJ, PCP, Builder's Works, adjusted mean, standard deviation, cut-off values
-
-3. Company File Matcher Agent
-   - match companies in cut-off sheet with BOQ/comparison files
-   - apply skip rules for SV list
-
-4. Price Breakdown Agent
-   - extract grand summary and major bill values by company
-
-5. Cut-Off Position Agent
-   - compare company tender price to cut-off
-   - calculate difference RM and percent
-
-6. Abnormal Price Agent
-   - flag abnormal bills/items, total mismatch, formula issue, suspicious price movement
-
-7. QS Review Agent
-   - produce review list for QS/commercial team
-
-8. Management Summary Agent
-   - generate concise summary for boss/management
-
-9. Generator Agent
-   - generate Excel, HTML, Markdown, JSON, and CSV outputs
-
-10. Supervisor Orchestrator Agent
-   - coordinate the above agents and prevent cycle mixing
-
-## 8. System-Wide Segments
-
-This project must always be organized into these segments:
+Every task must fit into one of these segments:
 
 1. Company Profile Intelligence
 2. License Intelligence
@@ -177,33 +123,110 @@ This project must always be organized into these segments:
 4. Experience Intelligence
 5. Technical Capability Intelligence
 6. Tender Intake Intelligence
-7. Eligibility Matching Intelligence
-8. Commercial Intelligence
-9. Evidence Pack Intelligence
-10. Submission Readiness Intelligence
-11. Management Decision Intelligence
-12. AI Agent Operations Layer
+7. Mandatory Compliance Intelligence
+8. Company Scoring / Ranking Intelligence
+9. Commercial Intelligence
+10. Evidence Pack Intelligence
+11. Submission Readiness Intelligence
+12. Management Decision Intelligence
+13. AI Agent Operations Layer
 
-Each module must declare its segment and cycle.
+## 5. Agent Roles Required by the System
 
-## 9. Current Instruction to Orchestrator
+The system requires multiple agents, not one generic chatbot:
 
-Do not continue building generic dashboards or generic chat agents for this task.
+1. Tender Intake Agent
+   - extracts tender requirements and scoring criteria
 
-For RTB_SG_TAWAU_P4, produce the Commercial Cut-Off Workpack first.
+2. Company Profile Agent
+   - manages company master data
 
-The AI agent layer should only sit on top of generated workpack data so it can answer and generate useful outputs grounded in real extracted data.
+3. License Agent
+   - checks MOF/CIDB/SPKK/STB/PUKONSA/SCORE/CCD and expiry
 
-## 10. Practical Success Criteria
+4. Financial Agent
+   - checks bank statements, audit, facility, working capital, escrow, financial risk
 
-The current work cycle is successful only when the user can use the generated output to answer:
+5. Experience Agent
+   - matches LOA/SST/CPC/project history to tender requirements
 
-1. What is the confirmed cut-off value?
-2. Which companies are above or below cut-off?
-3. Which companies are near cut-off?
-4. Which company prices or bill items look abnormal?
-5. Which companies were skipped and why?
-6. Which items must QS review?
-7. What summary can be sent to management?
+6. Technical Capability Agent
+   - checks personnel, machinery, technical certificates, method/programme requirements
 
-If the output does not answer these, the cycle is not done.
+7. Mandatory Compliance Agent
+   - decides pass/fail for mandatory requirements
+
+8. Company Scoring Agent
+   - scores eligible companies based on financial, technical, experience, and other criteria
+
+9. Commercial Agent
+   - performs cut-off, BOQ breakdown, price comparison, abnormal price detection
+
+10. Evidence Pack Agent
+   - builds document pack for tender support
+
+11. Submission Agent
+   - checks final forms, signatures, stamps, attachments, and can_submit
+
+12. Management Agent
+   - generates GO/HOLD/NO-GO and company recommendation summary
+
+13. Supervisor Orchestrator Agent
+   - chooses which agents run for the active task and prevents cycle mixing
+
+## 6. Correct Position of Cut-Off and Price Breakdown
+
+Cut-off and pecahan harga are **not the main system objective**.
+
+They belong under:
+
+Commercial Intelligence > Commercial Analysis Branch
+
+They are used to support the wider company/tender decision.
+
+For cut-off cycle:
+- SV list missing = SKIP, do not block
+- company missing from SV list = SKIP, do not block
+- license/submission/can_submit should not block cut-off analysis
+
+But this rule applies only inside the commercial branch. It does not replace the full company compliance and scoring workflow.
+
+## 7. Practical Success Criteria for the Whole System
+
+The system is successful only when it can help the user answer and generate:
+
+1. Which company is most suitable for a tender?
+2. Which company passes mandatory requirements?
+3. Which company fails and why?
+4. Which company has the best score / readiness?
+5. What documents are missing?
+6. What financial evidence is weak or strong?
+7. What experience evidence can be used?
+8. What technical/personnel/equipment evidence is required?
+9. What is the price/cut-off/commercial risk?
+10. What should PIC, QS, finance, technical team, document controller, and management do next?
+11. What can be generated now: checklist, report, summary, evidence pack, Excel, HTML, management memo?
+12. What is the final recommendation: GO / HOLD / NO-GO?
+
+## 8. Current Correction
+
+Previous direction over-focused on Commercial Cut-Off Workpack.
+
+Correct direction:
+
+1. Company preparation and suitability is the main objective.
+2. Mandatory compliance and scoring come before final company recommendation.
+3. Cut-off and price breakdown are one output branch, not the whole track.
+4. AI agents must generate real working outputs across all company readiness segments.
+
+## 9. Operating Instruction to Orchestrator
+
+Do not treat technical module PASS as operational success.
+
+Operational success means the user receives a usable output that helps complete tender work faster.
+
+Do not continue with generic dashboards or chat-only agents.
+
+Build and run agents according to the actual tender work cycle:
+
+Tender requirement extraction > company compliance > company scoring > commercial branch > evidence pack > submission readiness > management decision.
