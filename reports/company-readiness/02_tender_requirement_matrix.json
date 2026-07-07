@@ -1,0 +1,83 @@
+{
+  "generated_at": "2026-07-08T00:00:00+08:00",
+  "tender_case_id": "RTB_SG_TAWAU_P4",
+  "agent": "Tender Requirement Agent",
+  "output_type": "tender_requirement_matrix",
+  "source_policy": "All final requirements must be verified against official tender document/ad and approved evaluation template.",
+  "status": "SEED_REQUIREMENTS_PENDING_SOURCE_VERIFICATION",
+  "requirements": [
+    {
+      "requirement_id": "REQ-001",
+      "category": "tender_identity",
+      "requirement": "Identify official tender title, tender number, agency, closing date and tender category.",
+      "mandatory": true,
+      "source_ref": "SRC-001",
+      "evidence_needed": "Official tender advertisement or tender document",
+      "agent_status": "PENDING_SOURCE_EXTRACTION"
+    },
+    {
+      "requirement_id": "REQ-002",
+      "category": "license",
+      "requirement": "Confirm required contractor grade, categories and specializations such as CIDB G7 and relevant CE codes where applicable.",
+      "mandatory": true,
+      "source_ref": "SRC-001",
+      "evidence_needed": "Tender advertisement/document + CIDB/PPK/SPKK certificate evidence",
+      "agent_status": "PENDING_COMPANY_EVIDENCE"
+    },
+    {
+      "requirement_id": "REQ-003",
+      "category": "bumiputera_status",
+      "requirement": "Confirm Bumiputera / STB / Sabah route requirements where tender requires them.",
+      "mandatory": true,
+      "source_ref": "SRC-001",
+      "evidence_needed": "STB / PUKONSA / Bumiputera certificate as applicable",
+      "agent_status": "PENDING_COMPANY_EVIDENCE"
+    },
+    {
+      "requirement_id": "REQ-004",
+      "category": "document_completeness",
+      "requirement": "Check tender completeness using approved evaluation template, including required forms, signatures, stamping, authority and returned documents.",
+      "mandatory": true,
+      "source_ref": "SRC-002",
+      "evidence_needed": "Borang 1 and Borang 5 mapping from ANALISA KESEMPURNAAN DAN KEPATUHAN TENDER",
+      "agent_status": "PENDING_TEMPLATE_EXTRACTION"
+    },
+    {
+      "requirement_id": "REQ-005",
+      "category": "financial_capacity",
+      "requirement": "Evaluate company financial capacity using audit, nett worth, modal pusingan, bank/facility and current workload.",
+      "mandatory": false,
+      "source_ref": "SRC-002,SRC-006",
+      "evidence_needed": "Audited account, bank statement, facility letter, current workload",
+      "agent_status": "PENDING_FINANCIAL_AUDIT"
+    },
+    {
+      "requirement_id": "REQ-006",
+      "category": "experience",
+      "requirement": "Match company work experience against tender scope and evaluation template.",
+      "mandatory": false,
+      "source_ref": "SRC-002",
+      "evidence_needed": "LOA, SST, CPC and project completion/current project records",
+      "agent_status": "PENDING_EXPERIENCE_EVIDENCE"
+    },
+    {
+      "requirement_id": "REQ-007",
+      "category": "technical_capability",
+      "requirement": "Evaluate technical staff, qualifications, equipment and capability evidence.",
+      "mandatory": false,
+      "source_ref": "SRC-002",
+      "evidence_needed": "Staff list, qualifications, equipment/plant records, method/programme where required",
+      "agent_status": "PENDING_TECHNICAL_EVIDENCE"
+    },
+    {
+      "requirement_id": "REQ-008",
+      "category": "commercial_support",
+      "requirement": "Run price/cut-off/BOQ analysis only as commercial support branch after company compliance context exists.",
+      "mandatory": false,
+      "source_ref": "SRC-007,SRC-008",
+      "evidence_needed": "Cut-off sheet, BOQ/company price folder, comparison sheet",
+      "agent_status": "WAIT_FOR_COMPANY_ELIGIBILITY_CONTEXT"
+    }
+  ],
+  "decision_rule": "No company recommendation is allowed from this matrix alone. It feeds Mandatory Compliance Agent and Company Scoring Agent."
+}
