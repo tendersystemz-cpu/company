@@ -1,0 +1,10 @@
+company_name,tender_case_id,license_gate_score,financial_score,experience_score,technical_score,commercial_score,total_score,score_status,ranking_status,source_refs,decision_note
+ABAD KENANGA SDN BHD,RTB_SG_TAWAU_P4,PRELIM_PASS_PENDING_VERIFY,NA,NA,NA,NA,NOT_CALCULATED,INSUFFICIENT_EVIDENCE,"SRC-005","Do not rank until financial, experience and technical evidence are available."
+ADWA REALTY SDN BHD,RTB_SG_TAWAU_P4,PRELIM_PASS_PENDING_VERIFY,NA,NA,NA,NA,NOT_CALCULATED,INSUFFICIENT_EVIDENCE,"SRC-005","Do not rank until financial, experience and technical evidence are available."
+AJUDAN SETIA SDN BHD,RTB_SG_TAWAU_P4,PRELIM_PASS_PENDING_VERIFY,NA,NA,NA,NA,NOT_CALCULATED,INSUFFICIENT_EVIDENCE,"SRC-005","Do not rank until financial, experience and technical evidence are available."
+AKRAB SERASI SDN BHD,RTB_SG_TAWAU_P4,HOLD_STB_REVIEW,NA,NA,NA,NA,NOT_CALCULATED,HOLD,"SRC-005","STB must be verified before scoring."
+AMBANG TERBILANG SDN BHD,RTB_SG_TAWAU_P4,PRELIM_PASS_PENDING_VERIFY,NA,NA,NA,NA,NOT_CALCULATED,INSUFFICIENT_EVIDENCE,"SRC-005","Do not rank until financial, experience and technical evidence are available."
+ANGKA BERNAS SDN BHD,RTB_SG_TAWAU_P4,PRELIM_PASS_PENDING_VERIFY,NA,NA,NA,NA,NOT_CALCULATED,INSUFFICIENT_EVIDENCE,"SRC-005","Do not rank until financial, experience and technical evidence are available."
+ARMADA KASIH SDN BHD,RTB_SG_TAWAU_P4,FAIL_GRADE_G6,NA,NA,NA,NA,REJECTED,NOT_RANKED,"SRC-005","Rejected from G7 tender if G7 gate confirmed."
+STRIVE EXCELLENCE SDN BHD,RTB_SG_TAWAU_P4,PRELIM_PASS_PENDING_VERIFY,NA,NA,NA,COMMERCIAL_SOURCE_AVAILABLE,NOT_CALCULATED,INSUFFICIENT_EVIDENCE,"SRC-005;SRC-007;SRC-008","Commercial source exists but cannot drive ranking before compliance/readiness evidence."
+TEERAZ NIAGA SDN BHD,RTB_SG_TAWAU_P4,PRELIM_PASS_PENDING_VERIFY,NA,NA,NA,NA,NOT_CALCULATED,INSUFFICIENT_EVIDENCE,"SRC-005","Do not rank until financial, experience and technical evidence are available."
