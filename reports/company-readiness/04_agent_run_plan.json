@@ -1,0 +1,102 @@
+{
+  "generated_at": "2026-07-08T00:00:00+08:00",
+  "tender_case_id": "RTB_SG_TAWAU_P4",
+  "agent": "Supervisor Orchestrator Agent",
+  "output_type": "agent_run_plan",
+  "status": "BATCH_1_CONTROL_STARTED",
+  "active_system_understanding": "Company-first Tender Readiness Multi-Agent System",
+  "anti_drift_lock": [
+    "Do not start with dashboard.",
+    "Do not start with generic chatbot.",
+    "Do not start with commercial cut-off as the main objective.",
+    "Do not recommend any company without source map and mandatory compliance context."
+  ],
+  "plan": [
+    {
+      "order": 1,
+      "batch": "BATCH_1_CONTROL",
+      "agent": "Source Map Agent",
+      "status": "DONE_SEE_01_SOURCE_MAP",
+      "output": "reports/company-readiness/01_source_map.json"
+    },
+    {
+      "order": 2,
+      "batch": "BATCH_1_CONTROL",
+      "agent": "Tender Requirement Agent",
+      "status": "DONE_SEE_02_TENDER_REQUIREMENT_MATRIX",
+      "output": "reports/company-readiness/02_tender_requirement_matrix.json"
+    },
+    {
+      "order": 3,
+      "batch": "BATCH_1_CONTROL",
+      "agent": "Evaluation Template Agent",
+      "status": "DONE_SEE_03_EVALUATION_TEMPLATE_MAP",
+      "output": "reports/company-readiness/03_evaluation_template_map.json"
+    },
+    {
+      "order": 4,
+      "batch": "BATCH_2_COMPANY_EVIDENCE",
+      "agent": "Company Profile Agent",
+      "status": "NEXT",
+      "required_sources": ["SRC-003"],
+      "output": "reports/company-readiness/05_company_profile_register.json"
+    },
+    {
+      "order": 5,
+      "batch": "BATCH_2_COMPANY_EVIDENCE",
+      "agent": "License Compliance Agent",
+      "status": "NEXT_AFTER_COMPANY_LIST",
+      "required_sources": ["SRC-004", "SRC-005"],
+      "output": "reports/company-readiness/06_license_compliance_matrix.csv"
+    },
+    {
+      "order": 6,
+      "batch": "BATCH_2_COMPANY_EVIDENCE",
+      "agent": "Financial Audit Agent",
+      "status": "NEXT_AFTER_COMPANY_LIST",
+      "required_sources": ["SRC-006"],
+      "output": "reports/company-readiness/07_financial_capacity_audit.csv"
+    },
+    {
+      "order": 7,
+      "batch": "BATCH_2_COMPANY_EVIDENCE",
+      "agent": "Experience Matching Agent",
+      "status": "PENDING_EXPERIENCE_SOURCE_MAP",
+      "output": "reports/company-readiness/08_experience_match_matrix.csv"
+    },
+    {
+      "order": 8,
+      "batch": "BATCH_2_COMPANY_EVIDENCE",
+      "agent": "Technical Capability Agent",
+      "status": "PENDING_TECHNICAL_SOURCE_MAP",
+      "output": "reports/company-readiness/09_technical_capability_matrix.csv"
+    },
+    {
+      "order": 9,
+      "batch": "BATCH_3_DECISION",
+      "agent": "Mandatory Compliance Agent",
+      "status": "WAIT_FOR_BATCH_2",
+      "output": "reports/company-readiness/10_company_eligibility_matrix.csv"
+    },
+    {
+      "order": 10,
+      "batch": "BATCH_3_DECISION",
+      "agent": "Company Scoring Agent",
+      "status": "WAIT_FOR_ELIGIBLE_COMPANY_POOL",
+      "output": "reports/company-readiness/11_company_scoring_table.csv"
+    },
+    {
+      "order": 11,
+      "batch": "BATCH_4_COMMERCIAL_SUPPORT",
+      "agent": "Commercial Agent",
+      "status": "SUPPORT_BRANCH_ONLY_WAIT_FOR_ELIGIBILITY_CONTEXT",
+      "required_sources": ["SRC-007", "SRC-008"],
+      "output": "reports/company-readiness/12_commercial_cutoff_workpack.xlsx"
+    }
+  ],
+  "next_execution": {
+    "batch": "BATCH_2_COMPANY_EVIDENCE",
+    "first_agent": "Company Profile Agent",
+    "objective": "Generate company profile register from company master, then pass company list to license and financial agents."
+  }
+}
