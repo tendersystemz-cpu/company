@@ -1,0 +1,7 @@
+raw_combination,account_preparer,normalized_account_preparer,auditor,normalized_auditor,role_resolution_status,follow_up_rule
+AMINI + AZMI,AMINI,AMINI,AZMI,AZMI ISMAIL & CO,USER_CONFIRMED_ROLE_SPLIT,"Accounting matters to AMINI; audit matters to AZMI ISMAIL & CO."
+AMINI + AZMI & CO,AMINI,AMINI,AZMI & CO,AZMI ISMAIL & CO,USER_CONFIRMED_ROLE_SPLIT,"Accounting matters to AMINI; audit matters to AZMI ISMAIL & CO."
+AMINI + AZMI ISMAIL & CO,AMINI,AMINI,AZMI ISMAIL & CO,AZMI ISMAIL & CO,USER_CONFIRMED_ROLE_SPLIT,"Accounting matters to AMINI; audit matters to AZMI ISMAIL & CO."
+ON PROGRESS + AMINI + AZMI,AMINI,AMINI,AZMI,AZMI ISMAIL & CO,USER_CONFIRMED_ROLE_SPLIT,"Chase AMINI for account progress before escalating audit to AZMI ISMAIL & CO."
+START + AMINI + AZMI,AMINI,AMINI,AZMI,AZMI ISMAIL & CO,USER_CONFIRMED_ROLE_SPLIT,"Request working file/progress from AMINI; audit handover status to AZMI ISMAIL & CO."
+PENDING + AMINI + AZMI,AMINI,AMINI,AZMI,AZMI ISMAIL & CO,USER_CONFIRMED_ROLE_SPLIT,"Clarify missing account documents with AMINI; audit query with AZMI ISMAIL & CO."
