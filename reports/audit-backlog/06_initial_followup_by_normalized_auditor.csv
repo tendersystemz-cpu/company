@@ -1,0 +1,36 @@
+normalized_auditor,company,year,issue_bucket,exact_issue,follow_up_request,priority
+ABDUL RAJI & CO,ABAD KENANGA SDN BHD,2025,BORANG_C_PENDING,"Borang C date blank / tracker states NOT SUBMITTED.","Confirm whether 2025 Borang C has been submitted. If submitted, provide submission date and proof. If not, provide expected filing date.",HIGH
+AZMI ISMAIL & CO,ADWA REALTY SDN BHD,2024,BORANG_C_PENDING,"2024 Borang C not submitted.","Confirm reason for non-submission and target submission date.",HIGH
+AZMI ISMAIL & CO,ADWA REALTY SDN BHD,2025,AUDIT_STATUS_PENDING,"2025 auditor listed but status is incomplete.","Confirm whether 2025 accounting/audit has started and list missing documents.",MEDIUM
+HALIM AHMAD & CO,AJUDAN SETIA SDN BHD,2025,BORANG_C_PENDING,"2025 Borang C not submitted.","Confirm 2025 audit completion and Borang C submission plan.",HIGH
+AZMI ISMAIL & CO,AKRAB SERASI SDN BHD,2025,BORANG_C_REVIEW,"Tax amount shown as RM0.00 but Borang C date blank.","Confirm whether Borang C was filed and provide filing date/proof.",HIGH
+AMINI,AMBANG TERBILANG SDN BHD,2025,AUDIT_PENDING,"2025 audit/account status blank with AMINI listed.","Confirm current 2025 audit status and missing documents.",MEDIUM
+AMINI,ANGKA BERNAS SDN BHD,2024,ACCOUNTING_PENDING,"2024 accounting ON PROGRESS and Borang C not submitted.","Provide latest accounting progress, outstanding documents and expected completion date.",HIGH
+AZMI ISMAIL & CO,ANGKA BERNAS SDN BHD,2025,AUDIT_STATUS_PENDING,"2025 auditor listed but status incomplete.","Confirm whether 2025 audit has started and required documents.",MEDIUM
+AZMI ISMAIL & CO,ANJALAN JAYA (M) SDN BHD,2024,ACCOUNTING_PENDING,"2024 status PENDING and Borang C not submitted.","Provide pending reason, missing documents and committed completion date.",HIGH
+AZMI ISMAIL & CO,ANJALAN JAYA (M) SDN BHD,2025,ACCOUNTING_STARTED,"2025 status START but no evidence completion.","Provide working file status and next milestone.",MEDIUM
+AMINI,ANTENA SENSASI SDN BHD,2024,ACCOUNTING_PENDING,"2024 accounting ON PROGRESS and Borang C not submitted.","Provide latest accounting progress and expected completion date.",HIGH
+AZMI ISMAIL & CO,ANTENA SENSASI SDN BHD,2025,AUDIT_STATUS_PENDING,"2025 auditor listed but status incomplete.","Confirm 2025 audit start/status and missing documents.",MEDIUM
+AZMI ISMAIL & CO,ARMADA KASIH SDN BHD,2025,BORANG_C_PENDING,"Accounting/audit done but Borang C not submitted.","Confirm Borang C submission target date and reason for delay.",HIGH
+AZMI ISMAIL & CO,ARMADA KIDAL SDN BHD,2025,ACCOUNTING_PENDING,"2025 status PENDING.","Provide pending reason and document request list.",HIGH
+AMINI,ARUS LAKSANA SDN BHD,2025,AUDIT_PENDING,"2025 auditor/accountant AMINI listed but status incomplete.","Confirm status and missing documents.",MEDIUM
+BAL & PARTNERS,ASPEK SOLUSI SDN BHD,2025,BORANG_C_PENDING,"2025 Borang C not submitted.","Confirm expected submission date and filing responsibility.",HIGH
+HALIM AHMAD & CO,BAKAT JAYA BINA SDN BHD,2025,BORANG_C_PENDING,"2025 Borang C not submitted.","Confirm expected submission date and current audit status.",HIGH
+AZMI ISMAIL & CO,BARISAN SEMARAK SDN BHD,2024,BORANG_C_REVIEW,"2024 tax amount exists but Borang C date blank.","Confirm if Borang C filed; provide date/proof or filing plan.",HIGH
+AZMI ISMAIL & CO,BARISAN SEMARAK SDN BHD,2025,ACCOUNTING_STARTED,"2025 status START.","Provide current working file status and missing document list.",MEDIUM
+ABDUL RAJI & CO,BERIBU TRADISI SDN BHD,2025,BORANG_C_PENDING,"2025 Borang C not submitted.","Confirm filing date/proof or expected submission date.",HIGH
+AZMI ISMAIL & CO,BESTARI ANGGUN SDN BHD,2025,ACCOUNTING_PENDING,"2025 status PENDING and Borang C not submitted.","Provide pending reason, missing documents and expected completion date.",HIGH
+ABDUL RAJI & CO,BIMA SAMUDRA SDN BHD,2025,BORANG_C_PENDING,"2025 Borang C not submitted.","Confirm filing date/proof or target submission date.",HIGH
+AZMI ISMAIL & CO,BINA ALAM VENTURES SDN BHD,2025,ACCOUNTING_PENDING,"2025 status PENDING and Borang C not submitted.","Provide pending reason and missing documents.",HIGH
+HALIM AHMAD & CO,BINA PERTIWI SDN BHD,2024,UNKNOWN_REVIEW,"Status incomplete and Borang C not submitted.","Confirm full 2024 audit/account/tax status and missing documents.",HIGH
+HALIM AHMAD & CO,BINA PERTIWI SDN BHD,2025,UNKNOWN_REVIEW,"2025 status incomplete.","Confirm 2025 work status and responsible person.",MEDIUM
+BAL & PARTNERS,BINTANG KEJORA SDN BHD,2024,UNKNOWN_REVIEW,"Status incomplete and Borang C not submitted.","Confirm current status and missing documents.",HIGH
+AZMI ISMAIL & CO,BINTANG KEJORA SDN BHD,2025,UNKNOWN_REVIEW,"2025 status incomplete.","Confirm 2025 work status.",MEDIUM
+AMINI,CABARAN KIARA SDN BHD,2024,UNKNOWN_REVIEW,"Status incomplete.","Confirm whether AMINI is handling 2024 account/audit and list outstanding documents.",MEDIUM
+AZMI ISMAIL & CO,CABARAN KIARA SDN BHD,2025,UNKNOWN_REVIEW,"2025 status incomplete.","Confirm current 2025 audit/account status.",MEDIUM
+BAL & PARTNERS,CAKRA MAKOTA SDN BHD,2024,UNKNOWN_REVIEW,"Status incomplete and Borang C not submitted.","Confirm current status and missing documents.",HIGH
+AZMI ISMAIL & CO,CAKRA MAKOTA SDN BHD,2025,UNKNOWN_REVIEW,"2025 status incomplete.","Confirm 2025 work status.",MEDIUM
+AZMI ISMAIL & CO,CERVO WORKS SDN BHD,2025,ACCOUNTING_PENDING,"2025 status PENDING and Borang C not submitted.","Provide pending reason, missing documents and expected completion date.",HIGH
+ABDUL RAJI & CO,CONSOLIDATED SOLUTIONS SDN BHD,2025,BORANG_C_PENDING,"2025 Borang C not submitted.","Confirm expected submission date and proof once filed.",HIGH
+ISMAWADEE & CO,DERRIDA SDN BHD,2024,UNKNOWN_REVIEW,"Status incomplete and Borang C not submitted.","Confirm current 2024 audit/account/tax status.",HIGH
+AMINI,DERRIDA SDN BHD,2025,UNKNOWN_REVIEW,"2025 AMINI listed but status incomplete.","Confirm current 2025 status and missing documents.",MEDIUM
