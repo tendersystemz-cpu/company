@@ -1,0 +1,8 @@
+scenario,normalized_account_preparer,normalized_tax_agent,normalized_auditor,role_resolution_status,primary_followup_party,follow_up_scope
+AMINI only in accounting/tax context,AMINI,AMINI,,USER_CONFIRMED_ACCOUNT_TAX_ROLE,AMINI,"Account preparation, tax computation, Borang C, LHDN proof."
+AMINI + AZMI,AMINI,AMINI,AZMI ISMAIL & CO,USER_CONFIRMED_ACCOUNT_TAX_AUDIT_SPLIT,AMINI,"For account and tax matters. Audit matters go to AZMI ISMAIL & CO."
+AMINI + AZMI & CO,AMINI,AMINI,AZMI ISMAIL & CO,USER_CONFIRMED_ACCOUNT_TAX_AUDIT_SPLIT,AMINI,"For account and tax matters. Audit matters go to AZMI ISMAIL & CO."
+AMINI + AZMI ISMAIL & CO,AMINI,AMINI,AZMI ISMAIL & CO,USER_CONFIRMED_ACCOUNT_TAX_AUDIT_SPLIT,AMINI,"For account and tax matters. Audit matters go to AZMI ISMAIL & CO."
+Accounting ON PROGRESS with AMINI,AMINI,AMINI,,USER_CONFIRMED_ACCOUNT_TAX_ROLE,AMINI,"Request account progress, missing documents and handover date."
+Borang C NOT SUBMITTED with AMINI,AMINI,AMINI,,USER_CONFIRMED_ACCOUNT_TAX_ROLE,AMINI,"Request tax computation, Borang C submission date and LHDN acknowledgement."
+Audit pending after AMINI handover,AMINI,AMINI,AZMI ISMAIL & CO,USER_CONFIRMED_ACCOUNT_TAX_AUDIT_SPLIT,AZMI ISMAIL & CO,"Request audit query, draft audit report and signing date."
