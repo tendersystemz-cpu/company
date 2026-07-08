@@ -1,0 +1,70 @@
+field_name,field_type,section,required,description
+company_name,text,identity,YES,Registered company name.
+fye,text,identity,YES,Financial year end / audit period.
+audit_year,number,identity,YES,Audit/account year being tracked.
+current_stage,enum,status,YES,Current workflow stage using approved stage dictionary.
+next_owner,text,status,YES,Person or role responsible for next movement.
+next_action,text,status,YES,Exact action required next.
+due_date,date,status,YES,Target date for next action.
+priority,enum,status,YES,HIGH / MEDIUM / LOW.
+admin_pic,text,document_intake,NO,Internal PIC/admin collecting source documents.
+document_collection_status,enum,document_intake,YES,NOT_STARTED / IN_PROGRESS / COMPLETE / MISSING.
+document_missing_list,text,document_intake,NO,Exact missing documents.
+cashbook_link,url,document_intake,NO,Link to cashbook evidence.
+bank_statement_link,url,document_intake,NO,Link to bank statement evidence.
+supporting_evidence_folder,url,document_intake,NO,Folder link for vouchers/invoices/receipts/contracts.
+account_preparer,text,account,YES,Account preparer such as AMINI / Rohayu / Ayu.
+account_status,enum,account,YES,NOT_STARTED / ENTRY / CHECKING / REVIEW / READY / DONE.
+account_last_update,date,account,NO,Last account movement date.
+account_draft_link,url,account,NO,Draft account or working file link.
+account_query,text,account,NO,Pending account query.
+verifier_name,text,verification,NO,Hazlina or other verifier.
+verifier_status,enum,verification,NO,PENDING / REVIEWING / MODIFICATION_REQUIRED / VERIFIED.
+modification_required,text,verification,NO,Modification details if any.
+management_adjustment_status,enum,management_tax,NO,NOT_REQUIRED / PENDING / APPROVED / REJECTED.
+management_adjustment_note,text,management_tax,NO,Tax/account adjustment details.
+tax_agent,text,tax,NO,Tax agent, e.g. AMINI.
+cp204_required,boolean,cp204,NO,Whether CP204 applies.
+cp204_status,enum,cp204,NO,PENDING / SUBMITTED / PAYMENT_MONITORING / COMPLETE / NOT_APPLICABLE.
+cp204_submission_date,date,cp204,NO,CP204 submission date.
+cp204_amount,number,cp204,NO,Estimated tax payable amount.
+cp204_instalment_schedule,text,cp204,NO,Instalment schedule notes.
+cp204_payment_status,enum,cp204,NO,PENDING / PARTIAL / PAID / NOT_APPLICABLE.
+cp204a_revision_required,boolean,cp204,NO,Whether CP204A revision applies.
+cp204a_status,enum,cp204,NO,PENDING / SUBMITTED / NOT_REQUIRED.
+cp204a_submission_date,date,cp204,NO,CP204A submission date.
+cp204_evidence_link,url,cp204,NO,CP204/CP204A evidence link.
+tax_computation_status,enum,tax,NO,NOT_STARTED / IN_PROGRESS / COMPLETE.
+tax_computation_link,url,tax,NO,Tax computation working/evidence link.
+borang_c_status,enum,borang_c,YES,NOT_STARTED / PREPARING / PENDING_SUBMISSION / SUBMITTED / NOT_APPLICABLE.
+borang_c_submission_date,date,borang_c,NO,Borang C submission date.
+borang_c_acknowledgement_link,url,borang_c,NO,LHDN/Borang C acknowledgement proof.
+tax_payable_amount,number,tax_payment,NO,Tax payable amount.
+tax_payment_status,enum,tax_payment,NO,PENDING / PAID / NOT_APPLICABLE / OVERPAID.
+tax_payment_proof_link,url,tax_payment,NO,Payment evidence link.
+tcc_required,boolean,tcc,NO,Whether TCC is required.
+tcc_status,enum,tcc,NO,PENDING / REVIEW / COMPLETE / NOT_REQUIRED.
+tcc_date,date,tcc,NO,TCC date.
+tcc_expiry_or_validity,text,tcc,NO,TCC validity or expiry if any.
+tcc_evidence_link,url,tcc,NO,TCC evidence link.
+auditor_firm,text,audit,YES,Auditor firm, e.g. AZMI ISMAIL & CO.
+auditor_pic_or_partner,text,audit,NO,Auditor PIC or signing partner, e.g. Azmi Bin Semain.
+auditor_status,enum,audit,YES,NOT_SENT / WITH_AUDITOR / QUERY / READY_FOR_SIGN / SIGNED.
+auditor_query,text,audit,NO,Audit query details.
+auditor_query_owner,text,audit,NO,Who must clear the audit query.
+ready_for_sign_date,date,audit,NO,Date account became ready for signing.
+auditor_signed,boolean,audit,YES,Whether auditor has signed.
+signed_date,date,audit,NO,Auditor signing date.
+final_account_link,url,evidence,NO,Signed financial statement link.
+final_audit_report_link,url,evidence,NO,Audit report/signing page link.
+director_sign_required,boolean,signing,NO,Whether director/company signing is required.
+director_sign_status,enum,signing,NO,PENDING / SIGNED / NOT_REQUIRED.
+cosec_required,boolean,cosec,NO,Whether COSEC/SSM lodgement applies.
+cosec_lodgement_status,enum,cosec,NO,PENDING / LODGED / NOT_REQUIRED.
+cosec_lodgement_evidence_link,url,cosec,NO,SSM/COSEC lodgement proof.
+evidence_complete,boolean,evidence,YES,True only when all required evidence links exist.
+database_audit_updated,boolean,evidence,YES,Whether Database Audit Syarikat has been updated.
+ready_for_tender_loan,boolean,downstream,YES,Whether evidence can be used for tender/loan/compliance.
+last_updated_by,text,audit_log,YES,Person who last updated the row.
+last_updated_at,datetime,audit_log,YES,Timestamp of last update.
+remarks,text,audit_log,NO,Free-text notes; must not replace structured status.
